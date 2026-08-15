@@ -414,27 +414,36 @@ function flushCloudPush(){ clearTimeout(pushTimer); const job=pendingPush; pendi
    3) AUDIO — bundled Samantha voice clips (natural, offline). Falls back
    to the browser voice only if a file is missing.
    ===================================================================== */
-let audioQueue=[], curAudio=null;
-function stopAudio(){ audioQueue=[]; if(curAudio){ try{curAudio.pause();}catch(e){} curAudio=null; } if(window.speechSynthesis) speechSynthesis.cancel(); }
-function playQueue(list){ stopAudio(); if(save.muted) return; audioQueue=list.slice(); playNextAudio(); }
+let audioQueue=[], curAudio=null, queueDone=null;
+function stopAudio(){ audioQueue=[]; queueDone=null;
+  if(curAudio){ try{curAudio.pause();}catch(e){} curAudio=null; }
+  if(window.speechSynthesis) speechSynthesis.cancel(); }
+/* play a list of clips back-to-back; onDone fires when the LAST one finishes
+   (also fires immediately when muted, so callers never stall) */
+function playQueue(list,onDone){
+  stopAudio();
+  if(save.muted){ if(onDone) onDone(); return; }
+  queueDone=onDone||null; audioQueue=list.slice(); playNextAudio();
+}
 function playNextAudio(){
-  if(!audioQueue.length){ curAudio=null; return; }
+  if(!audioQueue.length){ curAudio=null; const d=queueDone; queueDone=null; if(d) d(); return; }
   const item=audioQueue.shift();
   const a=new Audio(item.file); curAudio=a;
   a.onended=playNextAudio;
   a.onerror=()=>{ tts(item.text||""); playNextAudio(); };
   const p=a.play(); if(p&&p.catch) p.catch(()=>{ tts(item.text||""); });
 }
-function sayWord(w){ playQueue([{file:`audio/${w}.m4a`, text:w}]); }
-function spellOutWord(w){
+function sayWord(w,onDone){ playQueue([{file:`audio/${w}.m4a`, text:w}], onDone); }
+function spellOutWord(w,onDone){
   const list=[{file:`audio/${w}.m4a`,text:w}];
   [...w].forEach(l=>list.push({file:`audio/letter_${l}.m4a`, text:l}));
   list.push({file:`audio/${w}.m4a`,text:w});
-  playQueue(list);
+  playQueue(list,onDone);
 }
 const PRAISE=[["greatjob","Great job!"],["welldone","Well done!"],["awesome","Awesome!"],["youdidit","You did it!"],["superstar","Superstar!"]];
-function playPraise(){ const p=PRAISE[Math.floor(Math.random()*PRAISE.length)]; playQueue([{file:`audio/phrase_${p[0]}.m4a`, text:p[1]}]); return p[1]; }
-function playPhrase(slug,text){ playQueue([{file:`audio/phrase_${slug}.m4a`, text:text}]); }
+function playPraise(onDone){ const p=PRAISE[Math.floor(Math.random()*PRAISE.length)];
+  playQueue([{file:`audio/phrase_${p[0]}.m4a`, text:p[1]}], onDone); return p[1]; }
+function playPhrase(slug,text,onDone){ playQueue([{file:`audio/phrase_${slug}.m4a`, text:text}], onDone); }
 
 /* browser-voice fallback, tuned to sound natural (not chirpy) */
 let voices=[];
@@ -446,18 +455,60 @@ function pickVoice(){ if(!voices.length) loadVoices();
 function tts(text,{rate=0.9,pitch=1.0}={}){ if(!window.speechSynthesis||save.muted||!text) return;
   const u=new SpeechSynthesisUtterance(text); u.rate=rate; u.pitch=pitch; const v=pickVoice(); if(v) u.voice=v; speechSynthesis.speak(u); }
 
-/* little game tones */
-let audioCtx=null;
-function actx(){ if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return audioCtx; }
-function tone(freq,start,dur,type="sine",vol=.16){ const c=actx(); if(!c||save.muted) return;
-  const o=c.createOscillator(),g=c.createGain(); o.type=type; o.frequency.value=freq; o.connect(g); g.connect(c.destination);
-  const t=c.currentTime+start; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.02); g.gain.exponentialRampToValueAtTime(.0001,t+dur); o.start(t); o.stop(t+dur+.02); }
-function sfxClick(){ tone(520,0,.07,"square",.05); }
-function sfxCorrect(){ [523,659,784,1046].forEach((f,i)=>tone(f,i*.09,.22,"triangle",.15)); }
-function sfxWrong(){ tone(300,0,.16,"sine",.12); tone(210,.12,.22,"sine",.12); }
-function sfxWin(){ [523,587,659,784,880,1046].forEach((f,i)=>tone(f,i*.1,.28,"triangle",.15)); }
-function sfxBadge(){ [784,988,1318].forEach((f,i)=>tone(f,i*.12,.32,"sine",.15)); }
-function sfxTick(){ tone(880,0,.05,"square",.05); }
+/* ---------------------------------------------------------------
+   SOUND DESIGN — soft mallet/bell tones through a compressor and a
+   small reverb, instead of raw beeps. Notes are sine-based with a
+   gentle harmonic and a smooth decay, so nothing sounds harsh.
+----------------------------------------------------------------*/
+let audioCtx=null, masterBus=null, verbSend=null;
+function actx(){
+  if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); buildBus(); }catch(e){ return null; } }
+  if(audioCtx && audioCtx.state==="suspended") audioCtx.resume().catch(()=>{});
+  return audioCtx;
+}
+function buildBus(){
+  const c=audioCtx;
+  const comp=c.createDynamicsCompressor();
+  comp.threshold.value=-20; comp.knee.value=26; comp.ratio.value=3.2; comp.attack.value=.004; comp.release.value=.25;
+  comp.connect(c.destination);
+  masterBus=c.createGain(); masterBus.gain.value=.85; masterBus.connect(comp);
+  const conv=c.createConvolver(); conv.buffer=makeIR(1.5,2.4); conv.connect(comp);
+  verbSend=c.createGain(); verbSend.gain.value=.22; verbSend.connect(conv);
+}
+function makeIR(sec,decay){                     // tiny synthetic room, keeps tones from sounding dry/cheap
+  const c=audioCtx, rate=c.sampleRate, len=Math.max(1,Math.floor(rate*sec));
+  const buf=c.createBuffer(2,len,rate);
+  for(let ch=0;ch<2;ch++){ const d=buf.getChannelData(ch);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay); }
+  return buf;
+}
+/* one rounded note: fundamental + soft octave partial, lowpassed, smooth decay */
+function note(freq,{at=0,dur=.5,gain=.15,send=.25,type="sine",bright=5}={}){
+  const c=actx(); if(!c||save.muted) return;
+  const t=c.currentTime+at;
+  const o=c.createOscillator(), o2=c.createOscillator();
+  const g=c.createGain(), g2=c.createGain(), lp=c.createBiquadFilter();
+  o.type=type; o.frequency.value=freq;
+  o2.type="sine"; o2.frequency.value=freq*2.005; g2.gain.value=.16;
+  lp.type="lowpass"; lp.frequency.value=Math.min(freq*bright,8000); lp.Q.value=.5;
+  o.connect(g); o2.connect(g2); g2.connect(g); g.connect(lp); lp.connect(masterBus);
+  if(send>0 && verbSend){ const s=c.createGain(); s.gain.value=send; lp.connect(s); s.connect(verbSend); }
+  g.gain.setValueAtTime(.0001,t);
+  g.gain.exponentialRampToValueAtTime(gain,t+.008);        // quick, click-free attack
+  g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.start(t); o2.start(t); o.stop(t+dur+.05); o2.stop(t+dur+.05);
+}
+const C5=523.25,D5=587.33,E5=659.25,G5=783.99,A5=880,C6=1046.5,E6=1318.5,G6=1568,F4=349.23,A4=440,C4=261.63;
+function sfxKey(){ note(300,{dur:.10,gain:.05,send:.04,bright:3}); }        // letter tap: soft wooden tick
+function sfxClick(){ note(520,{dur:.14,gain:.07,send:.10,bright:4}); }      // button: gentle, rounded
+function sfxCorrect(){ [C5,E5,G5,C6].forEach((f,i)=>note(f,{at:i*.075,dur:.55,gain:.13,send:.3})); }
+function sfxWrong(){ note(A4,{at:0,dur:.5,gain:.10,send:.35,bright:3});     // soft, sympathetic — never a buzzer
+                     note(F4,{at:.14,dur:.7,gain:.10,send:.35,bright:3}); }
+function sfxWin(){ [C5,E5,G5,C6,E6,G6].forEach((f,i)=>note(f,{at:i*.085,dur:.8,gain:.12,send:.4})); }
+function sfxBadge(){ [G5,C6,E6,G6].forEach((f,i)=>note(f,{at:i*.09,dur:.9,gain:.11,send:.5})); }
+function sfxTick(){ note(A5,{dur:.07,gain:.035,send:.05,bright:3}); }
+/* browsers block audio until the first gesture — wake the context on any tap */
+["pointerdown","keydown"].forEach(ev=>window.addEventListener(ev,()=>actx(),{once:false,passive:true}));
 
 /* =====================================================================
    4) HELPERS + EFFECTS
@@ -806,8 +857,8 @@ function renderWord(){
 function updateSlots(){ slotEls.forEach((el,i)=>{ el.textContent=(typed[i]||"").toUpperCase();
     el.className="slot"+(typed[i]?" filled":""); });
   const c=document.getElementById("check"); if(c) c.disabled = typed.length!==word.length; }
-function pressLetter(l){ if(solved) return; if(typed.length<word.length){ typed.push(l); sfxClick(); updateSlots(); } }
-function backspace(){ if(solved) return; if(typed.length){ typed.pop(); sfxClick(); updateSlots(); } }
+function pressLetter(l){ if(solved) return; if(typed.length<word.length){ typed.push(l); sfxKey(); updateSlots(); } }
+function backspace(){ if(solved) return; if(typed.length){ typed.pop(); sfxKey(); updateSlots(); } }
 
 function startTimer(seconds){
   clearTimer(); timer.total=seconds; timer.left=seconds;
@@ -834,11 +885,13 @@ function onCorrect(){
   save.known[word]=true; save.points++; removePractice(round.ti, word);
   persist();
   slotEls.forEach(el=>el.classList.add("ok"));
-  sfxCorrect(); confetti(18); playPraise();
+  sfxCorrect(); confetti(18);
   toast(rand(["Yes!","Great!","Woohoo!","⭐","Nice!"]));
   flyToPanel("left", emoji, word);
   round.i++;
-  setTimeout(()=>{ flushBadges(()=>{ round.i<round.words.length?renderWord():roundEnd(); }); }, 1150);
+  const go=once(()=>flushBadges(()=>{ round.i<round.words.length?renderWord():roundEnd(); }));
+  playPraise(()=>setTimeout(go,450));       // wait for the praise to finish speaking
+  setTimeout(go, 6000);                      // safety net if audio can't play
 }
 
 function onWrong(timeUp){
@@ -848,11 +901,15 @@ function onWrong(timeUp){
   const c=document.getElementById("check"); if(c) c.disabled=true;
   sfxWrong();
   toast(timeUp?"Time's up! ⏰":"Let's learn it! 😊", false);
-  setTimeout(()=>spellOutWord(word), 250);
   flyToPanel("right", emoji, word);
   round.i++;
-  setTimeout(()=>{ round.i<round.words.length?renderWord():roundEnd(); }, 2100);
+  /* stay on the word until it has been spelled out in full, THEN move on */
+  const go=once(()=>{ round.i<round.words.length?renderWord():roundEnd(); });
+  setTimeout(()=>spellOutWord(word, ()=>setTimeout(go,800)), 400);
+  setTimeout(go, 20000);                     // safety net if audio can't play
 }
+/* run a callback at most once, whichever trigger fires first */
+function once(fn){ let done=false; return ()=>{ if(done) return; done=true; fn(); }; }
 
 function flyToPanel(side, emo, wd){
   const panel=document.querySelector(".sidepanel."+side); const slots=document.getElementById("slots");
