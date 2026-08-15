@@ -247,8 +247,8 @@ function knownCountFor(id){ const d=readKey(saveKeyFor(id));
 /* One-time cleanup of two throwaway players ("Test", "Dad Test") that leaked in
    from development testing. Guarded by a flag so it can never touch a real
    profile you create later with a similar name. */
-const CLEAN_FLAG="spellquest_cleanup_v1";
-const STRAY_IDS=["t","dad-test"];
+const CLEAN_FLAG="spellquest_cleanup_v2";
+const STRAY_IDS=["t","dad-test","arjun"];
 function cleanStrayPlayers(){
   try{ if(localStorage.getItem(CLEAN_FLAG)) return; }catch(e){ return; }
   const before=roster.players.length;
