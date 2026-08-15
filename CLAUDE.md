@@ -4,14 +4,20 @@ Two applications live in this repo. They are independent and must stay that way.
 
 | | **V1 — the live game** | **V2 — adaptive platform** |
 |---|---|---|
-| Code | `index.html` (root, single file) | `backend/` + `web/` |
+| Code | `live-game/index.html` (single file) | `adaptive-platform/` |
 | Status | **In daily use by a 6-year-old** | Built, local only, not deployed |
 | URL | https://nirmalkumargcp-ux.github.io/spell-quest/ | `http://127.0.0.1:8010/app/` |
 | Data | Supabase (`profiles` table) | SQLite locally / Postgres via compose |
 
-**The most important rule: do not break V1.** JAMMU plays it. It is deployed
-from `index.html` on `main`, so any push to that file goes live within ~2 min.
-Build V2 alongside; switch over only when the user says so.
+**The most important rule: do not break V1.** JAMMU plays it. The whole
+`live-game/` folder is published as the website by
+`.github/workflows/deploy-live-game.yml`, so any push touching it goes live
+within ~2 min. Build V2 alongside; switch over only when the user says so.
+
+Pages is set to **build_type: workflow**. Do not switch it back to
+"deploy from a branch" — the repo root no longer holds `index.html`, so the
+legacy builder publishes an empty site and the game 404s. That happened once
+during the folder split; the fix was re-running the workflow.
 
 ---
 
@@ -38,9 +44,12 @@ RLS on with an open anon policy. The **anon/public** key is embedded in
 `index.html` — that is what it is for, but it means the repo/URL are public.
 
 **Never run bulk deletes against this database.** It holds real progress. Use
-test-only row ids (prefix `__test_`) and delete only those. I have wiped real
-rows here before by treating it as a sandbox; both incidents are described in
-the session history and cost the user trust.
+test-only row ids (prefix `__test_`) and delete only those. Real rows have been
+wiped here before by treating it as a sandbox.
+
+**Also: clear `localStorage` before loading the live site in a test browser.**
+Stale local data triggers the legacy migration, which invents a "Player 1"
+profile and syncs it into the family's roster. That has happened twice.
 
 Live data at last check: `jammu` (41 words, tier 2), `nirmal-test` (25 words, tier 1).
 
@@ -52,7 +61,7 @@ Implements `Adaptive Kids Learning App Backend.docx` (the product spec) with
 the "Field Guide" direction from `Design system scope decisions-handoff.zip`.
 
 ```
-backend/app/
+adaptive-platform/backend/app/
   adaptive/     the core IP — no HTTP, no framework
     config.py         EVERY tunable threshold/weight, single source of truth
     mastery.py        MasteryEngine interface + RuleBasedMasteryEngine
@@ -60,7 +69,8 @@ backend/app/
     spaced_repetition.py, difficulty.py, progression.py, learner_model.py
     evaluation/       one evaluator per question type, registered
   api/ models/ services/ seed/ simulator/
-web/index.html    Field Guide child app (Today / Notebook / My map)
+adaptive-platform/web/index.html   Field Guide child app
+live-game/images/ + audio/         shared assets (ASSETS_ROOT overrides)
 ```
 
 **Design rules that are load-bearing** (from the handoff, not preferences):
@@ -76,7 +86,7 @@ next, never scores an answer, never computes mastery. It asks
 
 ### Run it
 ```bash
-cd backend
+cd adaptive-platform/backend
 ./.venv/bin/uvicorn app.main:app --port 8010     # 8000 is taken on this Mac
 ./.venv/bin/python -m pytest -q                  # 44 tests, ~20s
 ./.venv/bin/python -m app.simulator.simulate     # watch synthetic learners
@@ -87,7 +97,8 @@ SQLite is the default so nothing is required to run.
 
 ### Content
 93 concepts × 4 knowledge dimensions (recognition / meaning / context /
-spelling) = 372 questions, seeded from `backend/app/seed/data/english.py`,
+spelling) = 372 questions, seeded from
+`adaptive-platform/backend/app/seed/data/english.py`,
 reusing the same photos and audio as V1.
 
 Tracking mastery **per dimension** is the point — it is how the system
