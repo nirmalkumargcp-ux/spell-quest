@@ -219,13 +219,43 @@ const TIER_OF={}; TIERS.forEach((t,i)=>t.words.forEach(o=>TIER_OF[o.w]=i));
 /* =====================================================================
    2) SAVED PROGRESS
    ===================================================================== */
-/* PERMANENT save key — do NOT change this on future updates, or progress resets.
-   Older versions are migrated forward automatically so nothing is ever lost. */
-const SAVE_KEY="spellquest";
-const OLD_KEYS=["spellquest_v3","spellquest_pics_v1","spellquest_v1"];
+/* PERMANENT keys — do NOT change these on future updates, or progress resets.
+   Each PLAYER (profile) has their own save: "spellquest:<playerId>".
+   Older single-profile saves are migrated into a first player automatically. */
+const LEGACY_KEYS=["spellquest","spellquest_v3","spellquest_pics_v1","spellquest_v1"];
+const PLAYERS_KEY="spellquest_players";
 const DEFAULT={ tier:0, points:0, known:{}, practice:{}, badges:{}, muted:false };
-let save=load();
+const AVATARS=["🦁","🐯","🐼","🦊","🐨","🐸","🦄","🐵","🐧","🐙","🦖","🐢","🐝","🦋","🌟","🚀","🐰","🐳"];
+function saveKeyFor(id){ return "spellquest:"+id; }
+let save={...DEFAULT};                       // the CURRENT player's progress
 function readKey(k){ try{ const s=localStorage.getItem(k); return s?JSON.parse(s):null; }catch(e){ return null; } }
+
+/* ---------- the player roster (who can play) ---------- */
+let roster=loadRoster();
+function loadRoster(){ try{ return Object.assign({players:[],current:""}, JSON.parse(localStorage.getItem(PLAYERS_KEY))||{}); }catch(e){ return {players:[],current:""}; } }
+function saveRosterLocal(){ try{ localStorage.setItem(PLAYERS_KEY,JSON.stringify(roster)); }catch(e){} }
+function saveRoster(){ saveRosterLocal(); scheduleRosterPush(); }
+function currentPlayer(){ return roster.players.find(p=>p.id===roster.current)||null; }
+function makePlayerId(name){
+  const base=(name||"player").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,20)||"player";
+  let id=base,n=2; while(roster.players.some(p=>p.id===id)) id=base+"-"+(n++); return id;
+}
+let cloudCounts={};   // playerId -> words known, from the cloud (used before a save is downloaded)
+function knownCountFor(id){ const d=readKey(saveKeyFor(id));
+  if(d&&d.known) return Math.max(Object.keys(d.known).length, cloudCounts[id]||0);
+  return cloudCounts[id]||0; }
+/* first run: if there's progress from the old single-profile version, keep it as "Player 1" */
+function ensureRoster(){
+  if(roster.players.length) return;
+  let legacy=null;
+  for(const k of LEGACY_KEYS){ const o=readKey(k); if(o){ legacy=migrate(o); break; } }
+  if(legacy && Object.keys(legacy.known||{}).length){
+    const p={id:"player-1", name:"Player 1", emoji:"🦁"};
+    roster.players=[p]; roster.current=p.id;
+    try{ localStorage.setItem(saveKeyFor(p.id), JSON.stringify(normalizeSave(legacy))); }catch(e){}
+    saveRosterLocal();
+  }
+}
 /* pull the set of "known words" out of any past or present save shape */
 function extractKnown(d){ const k={}; if(!d) return k;
   if(d.known) for(const w in d.known){ if(d.known[w]) k[w]=true; }
@@ -235,14 +265,16 @@ function recomputeTier(known){ let t=0; while(t<TIERS.length && TIERS[t].words.e
 function migrate(old){ const known=extractKnown(old);
   return { tier:(typeof old.tier==="number"?old.tier:recomputeTier(known)), points:Object.keys(known).length,
            known, practice:old.practice||{}, badges:old.badges||{}, muted:!!old.muted }; }
-function load(){
-  let d=readKey(SAVE_KEY);
-  if(!d){ for(const k of OLD_KEYS){ const o=readKey(k); if(o){ d=migrate(o); break; } } }   // carry old progress forward
-  const s=Object.assign({}, DEFAULT, d||{});
-  s.known=s.known||{}; s.practice=s.practice||{}; s.badges=s.badges||{};
-  return s;
+function normalizeSave(d){ const s=Object.assign({}, DEFAULT, d||{});
+  s.known=s.known||{}; s.practice=s.practice||{}; s.badges=s.badges||{}; return s; }
+/* swap `save` over to the current player's own stored progress */
+function loadPlayerSave(){
+  const p=currentPlayer(); if(!p){ save={...DEFAULT}; return; }
+  save=normalizeSave(readKey(saveKeyFor(p.id)));
+  persistLocalOnly();
 }
-function persistLocalOnly(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(save)); }catch(e){} }
+function persistLocalOnly(){ const p=currentPlayer(); if(!p) return;
+  try{ localStorage.setItem(saveKeyFor(p.id),JSON.stringify(save)); }catch(e){} }
 function persist(){ persistLocalOnly(); scheduleCloudPush(); }
 /* merge another save (backup file OR cloud row) INTO ours — union of known words,
    highest level, combined badges/practice. Never removes progress. Returns words added. */
@@ -262,11 +294,12 @@ function removePractice(ti,w){ const a=save.practice[ti]; if(a){ const k=a.index
    app updates, a cleared browser, or moving to another device. */
 function exportProgress(){
   sfxClick();
-  const payload=Object.assign({app:"SpellQuest", savedAt:new Date().toISOString()}, save);
+  const p=currentPlayer();
+  const payload=Object.assign({app:"SpellQuest", player:p?p.name:"", savedAt:new Date().toISOString()}, save);
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a"); a.href=url;
-  a.download="spellquest-progress-"+new Date().toISOString().slice(0,10)+".json";
+  a.download="spellquest-"+(p?p.id:"progress")+"-"+new Date().toISOString().slice(0,10)+".json";
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1500);
   toast("Backup saved! 💾");
@@ -294,44 +327,88 @@ const SETUP_SQL=`create table if not exists profiles (
 alter table profiles enable row level security;
 create policy "spellquest_anon" on profiles for all to anon using (true) with check (true);`;
 /* Pre-configured to your own Supabase project, so every device auto-syncs with no setup.
-   You can change the profile code (or any of it) any time in the in-app Cloud Sync screen. */
+   Each player syncs under their own row (the player's id). Editable in the Cloud Sync screen. */
 const CLOUD_DEFAULT={
   url:"https://yoaireqzfiammcjuzyct.supabase.co",
-  key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvYWlyZXF6ZmlhbW1janV6eWN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3OTU1OTEsImV4cCI6MjEwMjM3MTU5MX0.r8HBDkDkLmKmcX-owIe1mgR5o-SLfrW76vKMs8pboro",
-  profile:"spellquest-home"
+  key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvYWlyZXF6ZmlhbW1janV6eWN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3OTU1OTEsImV4cCI6MjEwMjM3MTU5MX0.r8HBDkDkLmKmcX-owIe1mgR5o-SLfrW76vKMs8pboro"
 };
 let cloud=loadCloud();
 function loadCloud(){ try{ return Object.assign({}, CLOUD_DEFAULT, JSON.parse(localStorage.getItem(CLOUD_KEY))||{}); }catch(e){ return {...CLOUD_DEFAULT}; } }
 function saveCloud(){ try{ localStorage.setItem(CLOUD_KEY,JSON.stringify(cloud)); }catch(e){} }
-function cloudReady(){ return !!(cloud.url && cloud.key && cloud.profile); }
+function cloudReady(){ return !!(cloud.url && cloud.key); }
 function cloudBase(){ return cloud.url.replace(/\/+$/,""); }
 function cloudHeaders(extra){ return Object.assign({apikey:cloud.key, Authorization:"Bearer "+cloud.key, "Content-Type":"application/json"}, extra||{}); }
-async function cloudPull(){
-  const u=cloudBase()+"/rest/v1/profiles?id=eq."+encodeURIComponent(cloud.profile)+"&select=data";
+/* every player gets their own row, keyed by player id; the roster lives in one shared row */
+const ROSTER_ROW="__players__";
+function cloudRowId(){ const p=currentPlayer(); return p?p.id:null; }
+async function cloudGet(id){
+  const u=cloudBase()+"/rest/v1/profiles?id=eq."+encodeURIComponent(id)+"&select=data";
   const res=await fetch(u,{headers:cloudHeaders()}); if(!res.ok) throw new Error("pull "+res.status);
   const rows=await res.json(); return rows&&rows[0]?rows[0].data:null;
 }
-async function cloudPush(){
+async function cloudPut(id,data){
   const u=cloudBase()+"/rest/v1/profiles?on_conflict=id";
-  const body=[{id:cloud.profile, data:save, updated_at:new Date().toISOString()}];
+  const body=[{id, data, updated_at:new Date().toISOString()}];
   const res=await fetch(u,{method:"POST", headers:cloudHeaders({Prefer:"resolution=merge-duplicates"}), body:JSON.stringify(body)});
   if(!res.ok) throw new Error("push "+res.status);
 }
+async function cloudDelete(id){
+  const u=cloudBase()+"/rest/v1/profiles?id=eq."+encodeURIComponent(id);
+  await fetch(u,{method:"DELETE", headers:cloudHeaders()});
+}
+async function cloudPull(){ const id=cloudRowId(); return id?cloudGet(id):null; }
+async function cloudPush(){ const id=cloudRowId(); if(!id) return; await cloudPut(id, save); }
+/* roster sync so the same players show up on every device */
+async function rosterPull(){
+  /* one request: the roster row + every player's row (so the picker can show
+     word counts on a device that hasn't downloaded each player's save yet) */
+  const u=cloudBase()+"/rest/v1/profiles?select=id,data";
+  const res=await fetch(u,{headers:cloudHeaders()}); if(!res.ok) throw new Error("roster "+res.status);
+  const rows=await res.json(); let added=0;
+  for(const r of rows){
+    if(r.id===ROSTER_ROW){
+      const ps=(r.data&&r.data.players)||[];
+      for(const rp of ps){ if(rp&&rp.id&&!roster.players.some(p=>p.id===rp.id)){
+          roster.players.push({id:rp.id, name:rp.name||rp.id, emoji:rp.emoji||"🌟"}); added++; } }
+    } else if(r.data&&r.data.known){ cloudCounts[r.id]=Object.keys(r.data.known).length; }
+  }
+  if(added) saveRosterLocal();
+  return added;
+}
+async function rosterPush(){ if(!cloudReady()) return; await cloudPut(ROSTER_ROW,{players:roster.players}); }
+let rosterTimer=null;
+function scheduleRosterPush(){ if(!cloudReady()) return; clearTimeout(rosterTimer);
+  rosterTimer=setTimeout(()=>{ rosterPush().catch(()=>{}); }, 1200); }
 let cloudStatus="off";   // off | syncing | ok | error
 function cloudStatusText(){ if(!cloudReady()) return "☁️ Not set up";
   return cloudStatus==="syncing"?"☁️ Syncing…":cloudStatus==="ok"?"☁️ Synced":cloudStatus==="error"?"⚠️ Offline (saved on device)":"☁️ Ready"; }
 function updateCloudStatus(){ document.querySelectorAll(".cloudStat").forEach(el=>el.textContent=cloudStatusText()); }
 async function cloudSyncNow(){
-  if(!cloudReady()) return {ok:false};
+  if(!cloudReady() || !cloudRowId()) return {ok:false};
   cloudStatus="syncing"; updateCloudStatus();
-  try{ const remote=await cloudPull(); const added=applyRemote(remote); persistLocalOnly(); await cloudPush();
+  /* pin the player this sync belongs to, so switching players mid-request
+     can never write one child's progress into another's row */
+  const id=cloudRowId();
+  try{ const remote=await cloudGet(id);
+    if(cloudRowId()!==id) return {ok:false, stale:true};        // switched players while loading — abandon
+    const added=applyRemote(remote); persistLocalOnly();
+    await cloudPut(id, save);
+    rosterPush().catch(()=>{});
     cloudStatus="ok"; updateCloudStatus(); return {ok:true, added};
   }catch(e){ cloudStatus="error"; updateCloudStatus(); return {ok:false, error:String(e)}; }
 }
-let pushTimer=null;
-function scheduleCloudPush(){ if(!cloudReady()) return; clearTimeout(pushTimer);
-  pushTimer=setTimeout(()=>{ cloudStatus="syncing"; updateCloudStatus();
-    cloudPush().then(()=>{ cloudStatus="ok"; updateCloudStatus(); }).catch(()=>{ cloudStatus="error"; updateCloudStatus(); }); }, 1500); }
+let pushTimer=null, pendingPush=null;
+function scheduleCloudPush(){
+  const id=cloudRowId(); if(!cloudReady()||!id) return;
+  pendingPush={id, data:JSON.parse(JSON.stringify(save))};      // snapshot WHO and WHAT now, not at send time
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(()=>{ const job=pendingPush; pendingPush=null; if(!job) return;
+    cloudStatus="syncing"; updateCloudStatus();
+    cloudPut(job.id, job.data).then(()=>{ cloudStatus="ok"; updateCloudStatus(); })
+      .catch(()=>{ cloudStatus="error"; updateCloudStatus(); }); }, 1500); }
+/* send any queued push immediately — used before switching players */
+function flushCloudPush(){ clearTimeout(pushTimer); const job=pendingPush; pendingPush=null;
+  if(job) cloudPut(job.id, job.data).catch(()=>{}); }
 
 /* =====================================================================
    3) AUDIO — bundled Samantha voice clips (natural, offline). Falls back
@@ -426,13 +503,114 @@ refreshMute();
 /* =====================================================================
    5) HOME + PROFILE
    ===================================================================== */
+/* ---------- WHO'S PLAYING (profile picker) ---------- */
+let manageMode=false;
+function showPlayers(){
+  cleanupWord(); app.classList.remove("playing"); stopAudio();
+  const list=roster.players;
+  app.innerHTML=`
+    <div class="screen">
+      <h1 class="logo" style="font-size:clamp(30px,6.5vw,58px)">Who's playing?</h1>
+      <p class="tag">${list.length?(manageMode?"Tap ✏️ to rename or 🗑️ to remove":"Tap your name to start"):"Add a player to begin 🌱"}</p>
+      <div class="levels">
+        ${list.map(p=>`
+          <div class="level" data-id="${p.id}" style="width:170px">
+            <div class="face" style="background:linear-gradient(180deg,#c084fc,#7c3aed)">
+              <div class="emoji">${p.emoji}</div>
+              <h3>${p.name}</h3>
+              <p>${knownCountFor(p.id)} words known</p>
+              ${manageMode?`<div class="controls" style="margin-top:10px;gap:6px">
+                  <button class="btn ghost pEdit" data-id="${p.id}" style="padding:7px 12px;font-size:16px">✏️</button>
+                  <button class="btn del pDel" data-id="${p.id}" style="padding:7px 12px;font-size:16px">🗑️</button>
+                </div>`:""}
+            </div></div>`).join("")}
+        <div class="level" id="addPlayer" style="width:170px">
+          <div class="face" style="background:linear-gradient(180deg,#4ade80,#22c55e)">
+            <div class="emoji">➕</div><h3>New Player</h3><p>Add a profile</p>
+          </div></div>
+      </div>
+      <div class="controls" style="margin-top:18px">
+        ${list.length?`<button class="btn ghost" id="manageBtn">${manageMode?"✅ Done":"✏️ Manage"}</button>`:""}
+        ${cloudReady()?`<div class="chip cloudStat">${cloudStatusText()}</div>`:""}
+      </div>
+      <p class="muted-note">Each player has their own words, levels and badges — and syncs to the cloud separately.</p>
+    </div>`;
+  app.querySelectorAll(".level[data-id]").forEach(el=>{ el.onclick=(ev)=>{
+    if(ev.target.closest(".pEdit")||ev.target.closest(".pDel")) return;
+    sfxClick(); selectPlayer(el.dataset.id); }; });
+  app.querySelectorAll(".pEdit").forEach(b=>{ b.onclick=(e)=>{ e.stopPropagation(); sfxClick(); showPlayerForm(b.dataset.id); }; });
+  app.querySelectorAll(".pDel").forEach(b=>{ b.onclick=(e)=>{ e.stopPropagation(); sfxClick(); confirmDeletePlayer(b.dataset.id); }; });
+  document.getElementById("addPlayer").onclick=()=>{ sfxClick(); showPlayerForm(null); };
+  const mb=document.getElementById("manageBtn"); if(mb) mb.onclick=()=>{ sfxClick(); manageMode=!manageMode; showPlayers(); };
+}
+
+function showPlayerForm(editId){
+  const p=editId?roster.players.find(x=>x.id===editId):null;
+  let chosen=p?p.emoji:AVATARS[Math.floor(Math.random()*AVATARS.length)];
+  cleanupWord(); app.classList.remove("playing"); stopAudio();
+  app.innerHTML=`
+    <div class="screen">
+      <div class="card" style="max-width:560px;margin:0 auto;text-align:left">
+        <h2 style="color:#7c3aed;margin:0 0 12px;text-align:center">${p?"Edit Player":"New Player"}</h2>
+        <label class="clab">Name</label>
+        <input id="pName" class="cin" maxlength="14" placeholder="e.g. Arjun" value="${p?p.name.replace(/"/g,"&quot;"):""}">
+        <label class="clab">Pick a character</label>
+        <div id="avatars" style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px">
+          ${AVATARS.map(a=>`<button class="btn ghost av" data-a="${a}" style="padding:8px 10px;font-size:26px;${a===chosen?"outline:4px solid #7c3aed":""}">${a}</button>`).join("")}
+        </div>
+        <div class="controls" style="justify-content:center;margin-top:16px">
+          <button class="btn play big" id="savePlayer">${p?"Save":"Let's go!"}</button>
+          <button class="btn ghost" id="cancelPlayer">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+  const paint=()=>app.querySelectorAll(".av").forEach(b=>{ b.style.outline=(b.dataset.a===chosen)?"4px solid #7c3aed":""; });
+  app.querySelectorAll(".av").forEach(b=>{ b.onclick=()=>{ chosen=b.dataset.a; sfxClick(); paint(); }; });
+  document.getElementById("cancelPlayer").onclick=()=>{ sfxClick(); showPlayers(); };
+  document.getElementById("savePlayer").onclick=()=>{
+    const name=(document.getElementById("pName").value||"").trim();
+    if(!name){ sfxWrong(); toast("Type a name first",false); return; }
+    if(p){ p.name=name; p.emoji=chosen; saveRoster(); sfxCorrect(); showPlayers(); }
+    else{ const np={id:makePlayerId(name), name, emoji:chosen};
+      roster.players.push(np); saveRoster(); sfxCorrect(); confetti(18); selectPlayer(np.id); }
+  };
+}
+
+function confirmDeletePlayer(id){
+  const p=roster.players.find(x=>x.id===id); if(!p) return;
+  const el=document.createElement("div"); el.className="badgePop";
+  el.innerHTML=`<div class="card" style="max-width:420px">
+      <div class="emoji">${p.emoji}</div>
+      <h2 style="color:#b91c1c;margin:8px 0">Remove ${p.name}?</h2>
+      <p style="font-size:17px;margin:0 0 14px">This deletes their ${knownCountFor(id)} known words and progress. This can't be undone.</p>
+      <div class="controls"><button class="btn del" id="yesDel">Yes, remove</button>
+        <button class="btn ghost" id="noDel">Cancel</button></div></div>`;
+  document.body.appendChild(el);
+  el.querySelector("#noDel").onclick=()=>{ sfxClick(); el.remove(); };
+  el.querySelector("#yesDel").onclick=()=>{ sfxClick();
+    roster.players=roster.players.filter(x=>x.id!==id);
+    try{ localStorage.removeItem(saveKeyFor(id)); }catch(e){}
+    if(roster.current===id){ roster.current=""; save={...DEFAULT}; }
+    saveRoster(); if(cloudReady()) cloudDelete(id).catch(()=>{});
+    el.remove(); showPlayers(); };
+}
+
+async function selectPlayer(id){
+  flushCloudPush();                       // finish the previous player's save before switching
+  roster.current=id; saveRoster(); loadPlayerSave(); manageMode=false;
+  showHome();
+  if(cloudReady()){ await cloudSyncNow(); if(document.querySelector(".logo")) showHome(); }
+}
+
 function showHome(){
   cleanupWord(); app.classList.remove("playing"); stopAudio();
+  if(!currentPlayer()){ showPlayers(); return; }
   app.innerHTML=`
     <div class="screen">
       <h1 class="logo">🐨 Spell Quest</h1>
       <p class="tag">See the picture • Spell the word • Get 10/10 to level up!</p>
       <div class="statbar">
+        <button class="btn ghost" id="whoBtn" style="padding:9px 18px;font-size:19px">${currentPlayer().emoji} ${currentPlayer().name} · Switch</button>
         <div class="chip">📚 ${knownCount()} words known</div>
         <div class="chip">🏅 ${Object.keys(save.badges).length} badges</div>
         ${cloudReady()?`<div class="chip cloudStat">${cloudStatusText()}</div>`:""}
@@ -454,6 +632,7 @@ function showHome(){
       </div>
       <p class="muted-note">Tip: tap 🔊 to hear the word. Press ⛶ for full screen. Photos from Wikipedia.</p>
     </div>`;
+  document.getElementById("whoBtn").onclick=()=>{ sfxClick(); manageMode=false; showPlayers(); };
   document.getElementById("profBtn").onclick=()=>{ sfxClick(); showProfile(); };
   document.getElementById("cloudBtn").onclick=()=>{ sfxClick(); showCloud(); };
   app.querySelectorAll(".level").forEach(el=>{ el.onclick=()=>{ const i=+el.dataset.i;
@@ -467,7 +646,7 @@ function showProfile(){
     <div class="screen">
       <div class="top" style="max-width:900px;margin:0 auto 10px">
         <button class="btn ghost" id="back">⬅ Home</button>
-        <div class="chip">👤 My Words — ${total} known</div>
+        <div class="chip">${currentPlayer()?currentPlayer().emoji+" "+currentPlayer().name:"👤"} — ${total} words known</div>
         <div style="width:70px"></div>
       </div>
       <div class="controls" style="justify-content:center;margin:0 auto 10px">
@@ -512,8 +691,10 @@ function showCloud(){
         <input id="cUrl" class="cin" placeholder="https://xxxx.supabase.co" value="${cloud.url||""}">
         <label class="clab">Anon public key</label>
         <input id="cKey" class="cin" placeholder="eyJhbGciOi..." value="${cloud.key||""}">
-        <label class="clab">Profile code <span style="font-weight:400">— use the SAME code on each device to share progress</span></label>
-        <div style="display:flex;gap:8px"><input id="cProf" class="cin" placeholder="e.g. arjun-2026" value="${cloud.profile||""}" style="flex:1;margin-bottom:0"><button class="btn ghost" id="genCode" style="font-size:15px">🎲 New</button></div>
+        <div style="background:var(--soft);border-radius:14px;padding:10px 14px;margin:4px 0 6px;font-size:15px">
+          👥 Each player syncs under their own code — no setup needed per player.<br>
+          ${roster.players.length?roster.players.map(p=>`<b>${p.emoji} ${p.name}</b> → <code>${p.id}</code>`).join("<br>"):"<i>No players yet</i>"}
+        </div>
         <div class="controls" style="justify-content:flex-start;margin-top:14px">
           <button class="btn play" id="connect">✅ Save &amp; Sync</button>
           <button class="btn blue" id="syncNow">🔄 Sync Now</button>
@@ -524,16 +705,14 @@ function showCloud(){
       </div>
     </div>`;
   document.getElementById("back").onclick=()=>{ sfxClick(); showHome(); };
-  document.getElementById("genCode").onclick=()=>{ document.getElementById("cProf").value="kid-"+Math.random().toString(36).slice(2,8); };
   document.getElementById("copySql").onclick=()=>{ const t=document.getElementById("sqlBox"); t.focus(); t.select();
     (navigator.clipboard?navigator.clipboard.writeText(SETUP_SQL):Promise.reject())
       .then(()=>toast("Copied! 📋")).catch(()=>{ try{document.execCommand("copy"); toast("Copied! 📋");}catch(e){ toast("Select the code to copy",false);} }); };
-  const off=document.getElementById("cloudOff"); if(off) off.onclick=()=>{ sfxClick(); cloud={url:"",key:"",profile:""}; saveCloud(); cloudStatus="off"; showCloud(); };
+  const off=document.getElementById("cloudOff"); if(off) off.onclick=()=>{ sfxClick(); cloud={url:"",key:""}; saveCloud(); cloudStatus="off"; showCloud(); };
   document.getElementById("connect").onclick=async()=>{
     cloud.url=document.getElementById("cUrl").value.trim();
     cloud.key=document.getElementById("cKey").value.trim();
-    cloud.profile=document.getElementById("cProf").value.trim();
-    if(!cloudReady()){ sfxWrong(); toast("Fill in all three boxes",false); return; }
+    if(!cloudReady()){ sfxWrong(); toast("Fill in both boxes",false); return; }
     saveCloud(); sfxClick();
     const r=await cloudSyncNow();
     if(r.ok){ sfxCorrect(); confetti(20); toast("Connected! ☁️ +"+(r.added||0)+" words"); }
@@ -735,9 +914,13 @@ function roundEnd(){
   for(let i=0;i<14;i++){ const s=document.createElement("span"); s.textContent=e[i%e.length];
     s.style.left=Math.random()*100+"vw"; s.style.animationDuration=(10+Math.random()*14)+"s";
     s.style.animationDelay=(Math.random()*12)+"s"; s.style.fontSize=(24+Math.random()*30)+"px"; b.appendChild(s);} })();
-persist();      // lock migrated/loaded progress into the permanent save key right away
-showHome();
-if(cloudReady()) cloudSyncNow().then(()=>{ if(document.querySelector(".logo")) showHome(); });   // pull cloud progress on start
+(async function boot(){
+  ensureRoster();                                  // keep any pre-profiles progress as "Player 1"
+  if(cloudReady()){ try{ await rosterPull(); }catch(e){} }   // learn about players added on other devices
+  if(!currentPlayer()){ showPlayers(); return; }   // first run → "Who's playing?"
+  loadPlayerSave(); showHome();
+  if(cloudReady()){ await cloudSyncNow(); if(document.querySelector(".logo")) showHome(); }
+})();
 </script>
 </body>
 </html>
