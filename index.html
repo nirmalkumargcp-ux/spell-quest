@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Spell Quest — Picture Spelling!</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐨</text></svg>" />
+<style>
+  /* ---------------------------------------------------------------
+     SPELL QUEST — Picture Spelling.
+     A photo appears, the word is spoken, and the child types it.
+     • 10 words per round. Right = 1 point (flies LEFT). Wrong = flies RIGHT.
+     • Score X/10 at the end; must get 10/10 to climb to the next level.
+     • Missed words + new same-level words come back next round.
+     • Profile keeps every word the child knows.
+     Photos: ./images   Audio (Samantha voice): ./audio   — works offline.
+  ----------------------------------------------------------------*/
+  :root{
+    --pink:#ff6ea9; --purple:#8b5cf6; --blue:#38bdf8; --green:#34d399;
+    --yellow:#fbbf24; --orange:#fb923c; --red:#f87171;
+    --ink:#3b2a63; --card:#ffffff; --soft:#f4f0ff;
+    --shadow:0 10px 0 rgba(59,42,99,.12), 0 16px 28px rgba(59,42,99,.18);
+    --round:24px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; margin:0;}
+  body{
+    font-family:"Baloo 2","Comic Sans MS","Trebuchet MS",system-ui,-apple-system,sans-serif;
+    color:var(--ink);
+    background:linear-gradient(135deg,#a78bfa 0%,#f0abfc 35%,#7dd3fc 70%,#6ee7b7 100%);
+    background-size:300% 300%; animation:bgshift 18s ease infinite;
+    overflow:hidden; user-select:none; -webkit-user-select:none; touch-action:manipulation;
+  }
+  @keyframes bgshift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+  .bubbles{position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:0;}
+  .bubbles span{position:absolute; bottom:-80px; font-size:38px; opacity:.5; animation:rise linear infinite;}
+  @keyframes rise{to{transform:translateY(-115vh) rotate(220deg); opacity:0;}}
+
+  #app{position:relative; z-index:1; height:100%; width:100%; display:flex; flex-direction:column;
+       align-items:center; justify-content:center; padding:14px; text-align:center; overflow:auto;}
+  #app.playing{justify-content:flex-start; padding-top:10px;}
+  .screen{width:100%; max-width:900px; margin:auto; animation:pop .35s cubic-bezier(.2,1.3,.4,1);}
+  #app.playing .screen{margin:0 auto;}
+  @keyframes pop{from{transform:scale(.92); opacity:0} to{transform:scale(1); opacity:1}}
+
+  h1.logo{font-size:clamp(36px,8vw,72px); margin:0 0 2px; color:#fff;
+    text-shadow:0 4px 0 rgba(139,92,246,.5), 0 8px 18px rgba(59,42,99,.35);}
+  .tag{color:#fff; font-size:clamp(15px,3.2vw,22px); margin:0 0 16px; text-shadow:0 2px 8px rgba(59,42,99,.3);}
+
+  .btn{border:none; cursor:pointer; font-family:inherit; font-weight:800; color:#fff; border-radius:var(--round);
+    padding:15px 24px; font-size:clamp(17px,3.2vw,25px); box-shadow:var(--shadow);
+    transition:transform .12s, filter .12s; background:var(--purple);}
+  .btn:active{transform:translateY(4px) scale(.98); filter:brightness(1.05);}
+  .btn:disabled{opacity:.45; filter:grayscale(.4); cursor:default;}
+  .btn.big{padding:20px 40px; font-size:clamp(22px,4.4vw,34px);}
+  .btn.play{background:linear-gradient(180deg,#4ade80,#22c55e);}
+  .btn.blue{background:linear-gradient(180deg,#5cc9f5,#0ea5e9);}
+  .btn.yellow{background:linear-gradient(180deg,#fcd34d,#f59e0b); color:#7a4a00;}
+  .btn.pink{background:linear-gradient(180deg,#fb7fb4,#ec4899);}
+  .btn.ghost{background:rgba(255,255,255,.9); color:var(--purple); box-shadow:0 7px 0 rgba(139,92,246,.22);}
+
+  .card{background:var(--card); border-radius:30px; box-shadow:var(--shadow); padding:20px;}
+  #app.playing .card{padding:12px 16px;}
+
+  .statbar{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin:6px 0 18px;}
+  .chip{background:rgba(255,255,255,.92); border-radius:999px; padding:9px 18px; font-size:clamp(15px,2.8vw,20px);
+        font-weight:800; color:var(--ink); box-shadow:0 5px 0 rgba(59,42,99,.12); display:flex; align-items:center; gap:7px;}
+
+  /* level cards */
+  .levels{display:flex; gap:16px; justify-content:center; flex-wrap:wrap;}
+  .level{width:210px; max-width:82vw; cursor:pointer; position:relative; transition:transform .15s;}
+  .level:active{transform:translateY(4px) scale(.98);}
+  .level .face{border-radius:26px; padding:18px 16px; box-shadow:var(--shadow); color:#fff;}
+  .level.l1 .face{background:linear-gradient(180deg,#60a5fa,#2563eb);}
+  .level.l2 .face{background:linear-gradient(180deg,#f472b6,#db2777);}
+  .level.l3 .face{background:linear-gradient(180deg,#34d399,#059669);}
+  .level.l4 .face{background:linear-gradient(180deg,#c084fc,#7c3aed);}
+  .level.l5 .face{background:linear-gradient(180deg,#fbbf24,#d97706);}
+  .level.l6 .face{background:linear-gradient(180deg,#fb7185,#e11d48);}
+  .level.locked .face{filter:grayscale(.7) brightness(.85);}
+  .level .emoji{font-size:48px; line-height:1;}
+  .level h3{margin:6px 0 2px; font-size:23px;}
+  .level p{margin:0; font-size:15px; opacity:.95;}
+  .level .badge2{position:absolute; top:8px; right:12px; font-size:26px;}
+  .progwrap{height:13px; background:rgba(255,255,255,.35); border-radius:999px; margin-top:9px; overflow:hidden;}
+  .progwrap i{display:block; height:100%; width:0; background:linear-gradient(90deg,#fde047,#facc15); border-radius:999px; transition:width .5s;}
+
+  /* play top bar + timer */
+  .top{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;}
+  .timerwrap{flex:1; display:flex; align-items:center; gap:10px;}
+  .tbar{flex:1; height:20px; background:rgba(255,255,255,.55); border-radius:999px; overflow:hidden; box-shadow:inset 0 2px 4px rgba(59,42,99,.15);}
+  .tbar i{display:block; height:100%; width:100%; background:linear-gradient(90deg,#4ade80,#22c55e); transition:width .12s linear, background .3s;}
+  .tsec{min-width:70px; justify-content:center;}
+
+  .picwrap{display:flex; align-items:center; justify-content:center; margin:0 0 6px;}
+  .picture{height:clamp(120px,22vh,205px); max-width:100%; border-radius:20px; object-fit:cover;
+    box-shadow:0 8px 20px rgba(59,42,99,.28); border:5px solid #fff; background:#eee;}
+  .picfallback{display:none; height:clamp(120px,22vh,205px); width:clamp(120px,22vh,205px); border-radius:20px; align-items:center; justify-content:center;
+    font-size:clamp(84px,16vh,150px); background:var(--soft); box-shadow:0 8px 20px rgba(59,42,99,.28); border:5px solid #fff;}
+  .speaker{font-size:clamp(26px,5vh,44px); background:none; border:none; cursor:pointer; transition:transform .12s; line-height:1;}
+  .speaker:active{transform:scale(.9);}
+
+  .slots{display:flex; gap:7px; justify-content:center; flex-wrap:wrap; margin:2px 0 10px; min-height:48px;}
+  .slot{width:clamp(32px,6.5vw,50px); height:clamp(42px,8vw,58px); border-radius:13px; background:var(--soft);
+        border:4px dashed #c4b5fd; display:flex; align-items:center; justify-content:center;
+        font-size:clamp(20px,5vw,34px); font-weight:900; color:var(--ink);}
+  .slot.filled{border-style:solid; border-color:#a78bfa; background:#fff;}
+  .slot.ok{border-color:#22c55e; background:#dcfce7; color:#166534;}
+  .slot.reveal{border-color:#f59e0b; background:#fff7e0; color:#b45309;}
+
+  .keyboard{display:flex; flex-direction:column; gap:6px; align-items:center; margin-top:2px;}
+  .krow{display:flex; gap:6px; justify-content:center; flex-wrap:wrap;}
+  .key{width:clamp(32px,6vw,48px); height:clamp(36px,6.2vh,48px); border-radius:11px; border:none; cursor:pointer;
+    font-family:inherit; font-weight:900; font-size:clamp(15px,3.4vw,23px); color:#fff;
+    background:linear-gradient(180deg,#a78bfa,#7c3aed); box-shadow:0 5px 0 rgba(59,42,99,.25); transition:transform .08s;}
+  .key:active{transform:translateY(4px); box-shadow:0 1px 0 rgba(59,42,99,.25);}
+  .controls{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:8px;}
+  .btn.del{background:linear-gradient(180deg,#fca5a5,#ef4444); padding:12px 20px; font-size:20px;}
+  .btn.check{background:linear-gradient(180deg,#4ade80,#16a34a); padding:12px 26px; font-size:22px;}
+  .btn.check:not(:disabled){animation:cpulse 1s ease-in-out infinite;}
+  @keyframes cpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+
+  /* side panels: correct (left) / practice (right) */
+  .sidepanel{position:fixed; top:76px; width:132px; max-height:78vh; z-index:6; overflow:auto;
+    border-radius:20px; padding:8px 6px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:6px;}
+  .sidepanel.left{left:8px; background:rgba(220,252,231,.92);}
+  .sidepanel.right{right:8px; background:rgba(254,226,226,.92);}
+  .sphead{font-size:14px; font-weight:900; text-align:center;}
+  .sidepanel.left .sphead{color:#15803d;} .sidepanel.right .sphead{color:#b91c1c;}
+  .spchips{display:flex; flex-direction:column; gap:5px;}
+  .spchip{background:#fff; border-radius:14px; padding:4px 7px; box-shadow:0 3px 0 rgba(59,42,99,.1);
+    display:flex; align-items:center; gap:6px; font-weight:800; font-size:14px; color:var(--ink); animation:cloudpop .4s cubic-bezier(.2,1.5,.4,1);}
+  .spchip .ce{font-size:18px;}
+  @keyframes cloudpop{from{transform:scale(.3); opacity:0}to{transform:scale(1); opacity:1}}
+  .spchip.flying{position:fixed; z-index:70; pointer-events:none; transition:left .7s cubic-bezier(.5,0,.3,1), top .7s cubic-bezier(.5,0,.3,1), transform .7s, opacity .7s; font-size:16px;}
+  @media(max-width:820px){ .sidepanel{width:88px; top:70px} .spchip{font-size:11px; padding:3px 5px} .spchip .ce{font-size:14px} }
+
+  /* profile grid */
+  .pgrid{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; max-height:64vh; overflow:auto; padding:6px;}
+  .pcard{width:120px; background:#fff; border-radius:18px; box-shadow:var(--shadow); padding:8px; }
+  .pcard img{width:100%; height:78px; object-fit:cover; border-radius:12px; background:#eee;}
+  .pcard .pf{display:none; height:78px; align-items:center; justify-content:center; font-size:52px; background:var(--soft); border-radius:12px;}
+  .pcard .pw{font-weight:900; font-size:18px; margin-top:5px; text-transform:lowercase;}
+  .ptier{width:100%; text-align:left; color:#fff; font-weight:900; font-size:20px; margin:14px 4px 4px; text-shadow:0 2px 6px rgba(59,42,99,.35);}
+
+  .toast{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:40; pointer-events:none;}
+  .toast .bubble{background:#fff; border-radius:26px; padding:18px 34px; font-size:clamp(26px,6vw,48px); font-weight:900;
+    color:#16a34a; box-shadow:var(--shadow); animation:toastpop .5s cubic-bezier(.2,1.5,.4,1);}
+  .toast.oops .bubble{color:#f59e0b;}
+  @keyframes toastpop{from{transform:scale(.4); opacity:0}to{transform:scale(1); opacity:1}}
+  .confetti{position:fixed; inset:0; pointer-events:none; z-index:50; overflow:hidden;}
+  .confetti span{position:absolute; top:-40px; font-size:30px; animation:fall linear forwards;}
+  @keyframes fall{to{transform:translateY(110vh) rotate(540deg); opacity:.9;}}
+  .badgePop{position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+            background:rgba(45,30,80,.82); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); animation:pop .3s;}
+  .badgePop .card{max-width:420px;} .badgePop .emoji{font-size:88px;}
+
+  .corner{position:fixed; z-index:8;} .corner.tr{top:12px; right:12px;}
+  .iconbtn{width:52px; height:52px; border-radius:50%; border:none; cursor:pointer; font-size:24px;
+    background:rgba(255,255,255,.92); box-shadow:0 5px 0 rgba(59,42,99,.15);}
+  .iconbtn:active{transform:translateY(3px);}
+  .starline{font-size:clamp(38px,9vw,66px); letter-spacing:6px; margin:4px 0;}
+  .scoreBig{font-size:clamp(48px,12vw,96px); font-weight:900; color:var(--purple); margin:2px 0;}
+  .wrongList{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px 0;}
+  .wrongList .wl{background:#fff7e0; border:3px solid #fbbf24; border-radius:16px; padding:8px 12px; font-weight:900; font-size:20px; display:flex; align-items:center; gap:8px;}
+  .wrongList .wl .ce{font-size:24px;}
+  .muted-note{font-size:13px; opacity:.85; margin-top:10px; color:#fff;}
+  .cin{width:100%; padding:11px 13px; border-radius:12px; border:2px solid #c4b5fd; font-family:inherit; font-size:16px; margin:4px 0 12px; background:#fff; color:var(--ink);}
+  .clab{font-weight:800; font-size:15px; display:block; margin-top:6px;}
+</style>
+</head>
+<body>
+  <div class="bubbles" id="bubbles" aria-hidden="true"></div>
+  <div id="app"></div>
+  <div class="corner tr">
+    <button class="iconbtn" id="fsBtn" title="Full screen">⛶</button>
+    <button class="iconbtn" id="muteBtn" title="Sound on/off">🔊</button>
+  </div>
+
+<script>
+/* =====================================================================
+   1) LEVELS — 6 difficulty tiers. Each is a POOL of words; a round uses
+   10 at a time. w = word, e = emoji (fallback). Photos: images/<w>.jpg
+   ===================================================================== */
+const TIERS = [
+ { id:"l1", title:"Level 1", subtitle:"Little Words", emoji:"🐣", cls:"l1", words:[
+   {w:"cat",e:"🐱"},{w:"dog",e:"🐶"},{w:"hat",e:"🎩"},{w:"bus",e:"🚌"},{w:"pig",e:"🐷"},{w:"cup",e:"🥤"},
+   {w:"bee",e:"🐝"},{w:"fox",e:"🦊"},{w:"cow",e:"🐮"},{w:"car",e:"🚗"},{w:"bat",e:"🦇"},{w:"owl",e:"🦉"},
+   {w:"egg",e:"🥚"},{w:"ant",e:"🐜"},{w:"box",e:"📦"},{w:"key",e:"🔑"} ]},
+ { id:"l2", title:"Level 2", subtitle:"Fun Things", emoji:"🎈", cls:"l2", words:[
+   {w:"fish",e:"🐟"},{w:"tree",e:"🌳"},{w:"frog",e:"🐸"},{w:"cake",e:"🍰"},{w:"book",e:"📖"},{w:"moon",e:"🌙"},
+   {w:"duck",e:"🦆"},{w:"bird",e:"🐦"},{w:"ball",e:"⚽"},{w:"milk",e:"🥛"},{w:"lion",e:"🦁"},{w:"bear",e:"🐻"},
+   {w:"boat",e:"⛵"},{w:"gift",e:"🎁"},{w:"kite",e:"🪁"},{w:"drum",e:"🥁"} ]},
+ { id:"l3", title:"Level 3", subtitle:"Yummy Food", emoji:"🍎", cls:"l3", words:[
+   {w:"apple",e:"🍎"},{w:"bread",e:"🍞"},{w:"pizza",e:"🍕"},{w:"grape",e:"🍇"},{w:"lemon",e:"🍋"},{w:"candy",e:"🍬"},
+   {w:"donut",e:"🍩"},{w:"honey",e:"🍯"},{w:"melon",e:"🍈"},{w:"cherry",e:"🍒"},{w:"peach",e:"🍑"},{w:"carrot",e:"🥕"},
+   {w:"mango",e:"🥭"},{w:"onion",e:"🧅"},{w:"banana",e:"🍌"} ]},
+ { id:"l4", title:"Level 4", subtitle:"Animals", emoji:"🦁", cls:"l4", words:[
+   {w:"tiger",e:"🐯"},{w:"zebra",e:"🦓"},{w:"horse",e:"🐴"},{w:"mouse",e:"🐭"},{w:"sheep",e:"🐑"},{w:"panda",e:"🐼"},
+   {w:"koala",e:"🐨"},{w:"snake",e:"🐍"},{w:"whale",e:"🐳"},{w:"rabbit",e:"🐰"},{w:"monkey",e:"🐵"},{w:"turtle",e:"🐢"},
+   {w:"penguin",e:"🐧"},{w:"camel",e:"🐫"},{w:"goat",e:"🐐"},{w:"shark",e:"🦈"} ]},
+ { id:"l5", title:"Level 5", subtitle:"All Around", emoji:"🌈", cls:"l5", words:[
+   {w:"rainbow",e:"🌈"},{w:"flower",e:"🌸"},{w:"house",e:"🏠"},{w:"train",e:"🚆"},{w:"plane",e:"✈️"},{w:"rocket",e:"🚀"},
+   {w:"guitar",e:"🎸"},{w:"castle",e:"🏰"},{w:"umbrella",e:"☂️"},{w:"balloon",e:"🎈"},{w:"camera",e:"📷"},{w:"pencil",e:"✏️"},
+   {w:"hammer",e:"🔨"},{w:"ladder",e:"🪜"},{w:"clock",e:"🕐"} ]},
+ { id:"l6", title:"Level 6", subtitle:"Big Words", emoji:"🦖", cls:"l6", words:[
+   {w:"elephant",e:"🐘"},{w:"dolphin",e:"🐬"},{w:"dinosaur",e:"🦕"},{w:"butterfly",e:"🦋"},{w:"crocodile",e:"🐊"},
+   {w:"hamburger",e:"🍔"},{w:"strawberry",e:"🍓"},{w:"sunflower",e:"🌻"},{w:"octopus",e:"🐙"},{w:"kangaroo",e:"🦘"},
+   {w:"pineapple",e:"🍍"},{w:"telephone",e:"☎️"},{w:"helicopter",e:"🚁"},{w:"watermelon",e:"🍉"},{w:"chocolate",e:"🍫"} ]},
+];
+const IMAGES = {guitar:"guitar.png", ladder:"ladder.png"};   // everything else is <word>.jpg
+function imgSrc(w){ return "images/"+(IMAGES[w] || (w+".jpg")); }
+const ROUND_SIZE = 10;
+function timeForWord(w){ return 15 + w.length*3; }   // generous clock
+
+const EMOJI={}; TIERS.forEach(t=>t.words.forEach(o=>EMOJI[o.w]=o.e));
+const TIER_OF={}; TIERS.forEach((t,i)=>t.words.forEach(o=>TIER_OF[o.w]=i));
+
+/* =====================================================================
+   2) SAVED PROGRESS
+   ===================================================================== */
+/* PERMANENT save key — do NOT change this on future updates, or progress resets.
+   Older versions are migrated forward automatically so nothing is ever lost. */
+const SAVE_KEY="spellquest";
+const OLD_KEYS=["spellquest_v3","spellquest_pics_v1","spellquest_v1"];
+const DEFAULT={ tier:0, points:0, known:{}, practice:{}, badges:{}, muted:false };
+let save=load();
+function readKey(k){ try{ const s=localStorage.getItem(k); return s?JSON.parse(s):null; }catch(e){ return null; } }
+/* pull the set of "known words" out of any past or present save shape */
+function extractKnown(d){ const k={}; if(!d) return k;
+  if(d.known) for(const w in d.known){ if(d.known[w]) k[w]=true; }
+  if(d.words) for(const w in d.words){ const r=d.words[w]; if(r && (r.learned||r===true)) k[w]=true; }
+  return k; }
+function recomputeTier(known){ let t=0; while(t<TIERS.length && TIERS[t].words.every(o=>known[o.w])) t++; return Math.min(t, TIERS.length-1); }
+function migrate(old){ const known=extractKnown(old);
+  return { tier:(typeof old.tier==="number"?old.tier:recomputeTier(known)), points:Object.keys(known).length,
+           known, practice:old.practice||{}, badges:old.badges||{}, muted:!!old.muted }; }
+function load(){
+  let d=readKey(SAVE_KEY);
+  if(!d){ for(const k of OLD_KEYS){ const o=readKey(k); if(o){ d=migrate(o); break; } } }   // carry old progress forward
+  const s=Object.assign({}, DEFAULT, d||{});
+  s.known=s.known||{}; s.practice=s.practice||{}; s.badges=s.badges||{};
+  return s;
+}
+function persistLocalOnly(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(save)); }catch(e){} }
+function persist(){ persistLocalOnly(); scheduleCloudPush(); }
+/* merge another save (backup file OR cloud row) INTO ours — union of known words,
+   highest level, combined badges/practice. Never removes progress. Returns words added. */
+function applyRemote(d){ if(!d) return 0;
+  const known=extractKnown(d); let added=0;
+  for(const w in known){ if(!save.known[w]){ save.known[w]=true; added++; } }
+  save.tier=Math.max(save.tier||0, (typeof d.tier==="number"?d.tier:recomputeTier(save.known)));
+  if(d.badges) Object.assign(save.badges,d.badges);
+  if(d.practice) for(const t in d.practice){ save.practice[t]=Array.from(new Set([...(save.practice[t]||[]), ...(d.practice[t]||[])])); }
+  save.points=Object.keys(save.known).length; return added; }
+function knownCount(){ return Object.keys(save.known).length; }
+function tierKnown(ti){ return TIERS[ti].words.filter(o=>save.known[o.w]).length; }
+function addPractice(ti,w){ const a=save.practice[ti]||(save.practice[ti]=[]); if(!a.includes(w)) a.push(w); }
+function removePractice(ti,w){ const a=save.practice[ti]; if(a){ const k=a.indexOf(w); if(k>=0) a.splice(k,1); } }
+
+/* Backup (download) and Restore (upload) the profile so progress survives
+   app updates, a cleared browser, or moving to another device. */
+function exportProgress(){
+  sfxClick();
+  const payload=Object.assign({app:"SpellQuest", savedAt:new Date().toISOString()}, save);
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url;
+  a.download="spellquest-progress-"+new Date().toISOString().slice(0,10)+".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+  toast("Backup saved! 💾");
+}
+function importProgress(file){
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      const added=applyRemote(JSON.parse(r.result));
+      persist(); sfxCorrect(); confetti(24);
+      toast("Restored! +"+added+" words 🎉"); showProfile();
+    }catch(e){ sfxWrong(); toast("Couldn't read that file",false); } };
+  r.readAsText(file);
+}
+
+/* =====================================================================
+   CLOUD SYNC (optional) — your own free Supabase database. Offline-first:
+   the app always works on-device and syncs when it can reach the cloud.
+   ===================================================================== */
+const CLOUD_KEY="spellquest_cloud";
+const SETUP_SQL=`create table if not exists profiles (
+  id text primary key,
+  data jsonb,
+  updated_at timestamptz default now()
+);
+alter table profiles enable row level security;
+create policy "spellquest_anon" on profiles for all to anon using (true) with check (true);`;
+/* Pre-configured to your own Supabase project, so every device auto-syncs with no setup.
+   You can change the profile code (or any of it) any time in the in-app Cloud Sync screen. */
+const CLOUD_DEFAULT={
+  url:"https://yoaireqzfiammcjuzyct.supabase.co",
+  key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvYWlyZXF6ZmlhbW1janV6eWN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3OTU1OTEsImV4cCI6MjEwMjM3MTU5MX0.r8HBDkDkLmKmcX-owIe1mgR5o-SLfrW76vKMs8pboro",
+  profile:"spellquest-home"
+};
+let cloud=loadCloud();
+function loadCloud(){ try{ return Object.assign({}, CLOUD_DEFAULT, JSON.parse(localStorage.getItem(CLOUD_KEY))||{}); }catch(e){ return {...CLOUD_DEFAULT}; } }
+function saveCloud(){ try{ localStorage.setItem(CLOUD_KEY,JSON.stringify(cloud)); }catch(e){} }
+function cloudReady(){ return !!(cloud.url && cloud.key && cloud.profile); }
+function cloudBase(){ return cloud.url.replace(/\/+$/,""); }
+function cloudHeaders(extra){ return Object.assign({apikey:cloud.key, Authorization:"Bearer "+cloud.key, "Content-Type":"application/json"}, extra||{}); }
+async function cloudPull(){
+  const u=cloudBase()+"/rest/v1/profiles?id=eq."+encodeURIComponent(cloud.profile)+"&select=data";
+  const res=await fetch(u,{headers:cloudHeaders()}); if(!res.ok) throw new Error("pull "+res.status);
+  const rows=await res.json(); return rows&&rows[0]?rows[0].data:null;
+}
+async function cloudPush(){
+  const u=cloudBase()+"/rest/v1/profiles?on_conflict=id";
+  const body=[{id:cloud.profile, data:save, updated_at:new Date().toISOString()}];
+  const res=await fetch(u,{method:"POST", headers:cloudHeaders({Prefer:"resolution=merge-duplicates"}), body:JSON.stringify(body)});
+  if(!res.ok) throw new Error("push "+res.status);
+}
+let cloudStatus="off";   // off | syncing | ok | error
+function cloudStatusText(){ if(!cloudReady()) return "☁️ Not set up";
+  return cloudStatus==="syncing"?"☁️ Syncing…":cloudStatus==="ok"?"☁️ Synced":cloudStatus==="error"?"⚠️ Offline (saved on device)":"☁️ Ready"; }
+function updateCloudStatus(){ document.querySelectorAll(".cloudStat").forEach(el=>el.textContent=cloudStatusText()); }
+async function cloudSyncNow(){
+  if(!cloudReady()) return {ok:false};
+  cloudStatus="syncing"; updateCloudStatus();
+  try{ const remote=await cloudPull(); const added=applyRemote(remote); persistLocalOnly(); await cloudPush();
+    cloudStatus="ok"; updateCloudStatus(); return {ok:true, added};
+  }catch(e){ cloudStatus="error"; updateCloudStatus(); return {ok:false, error:String(e)}; }
+}
+let pushTimer=null;
+function scheduleCloudPush(){ if(!cloudReady()) return; clearTimeout(pushTimer);
+  pushTimer=setTimeout(()=>{ cloudStatus="syncing"; updateCloudStatus();
+    cloudPush().then(()=>{ cloudStatus="ok"; updateCloudStatus(); }).catch(()=>{ cloudStatus="error"; updateCloudStatus(); }); }, 1500); }
+
+/* =====================================================================
+   3) AUDIO — bundled Samantha voice clips (natural, offline). Falls back
+   to the browser voice only if a file is missing.
+   ===================================================================== */
+let audioQueue=[], curAudio=null;
+function stopAudio(){ audioQueue=[]; if(curAudio){ try{curAudio.pause();}catch(e){} curAudio=null; } if(window.speechSynthesis) speechSynthesis.cancel(); }
+function playQueue(list){ stopAudio(); if(save.muted) return; audioQueue=list.slice(); playNextAudio(); }
+function playNextAudio(){
+  if(!audioQueue.length){ curAudio=null; return; }
+  const item=audioQueue.shift();
+  const a=new Audio(item.file); curAudio=a;
+  a.onended=playNextAudio;
+  a.onerror=()=>{ tts(item.text||""); playNextAudio(); };
+  const p=a.play(); if(p&&p.catch) p.catch(()=>{ tts(item.text||""); });
+}
+function sayWord(w){ playQueue([{file:`audio/${w}.m4a`, text:w}]); }
+function spellOutWord(w){
+  const list=[{file:`audio/${w}.m4a`,text:w}];
+  [...w].forEach(l=>list.push({file:`audio/letter_${l}.m4a`, text:l}));
+  list.push({file:`audio/${w}.m4a`,text:w});
+  playQueue(list);
+}
+const PRAISE=[["greatjob","Great job!"],["welldone","Well done!"],["awesome","Awesome!"],["youdidit","You did it!"],["superstar","Superstar!"]];
+function playPraise(){ const p=PRAISE[Math.floor(Math.random()*PRAISE.length)]; playQueue([{file:`audio/phrase_${p[0]}.m4a`, text:p[1]}]); return p[1]; }
+function playPhrase(slug,text){ playQueue([{file:`audio/phrase_${slug}.m4a`, text:text}]); }
+
+/* browser-voice fallback, tuned to sound natural (not chirpy) */
+let voices=[];
+function loadVoices(){ voices=window.speechSynthesis?speechSynthesis.getVoices():[]; }
+if(window.speechSynthesis){ loadVoices(); speechSynthesis.onvoiceschanged=loadVoices; }
+function pickVoice(){ if(!voices.length) loadVoices();
+  return voices.find(v=>/samantha/i.test(v.name)) || voices.find(v=>/^en(-|_)?US/i.test(v.lang))
+      || voices.find(v=>/^en/i.test(v.lang)) || null; }
+function tts(text,{rate=0.9,pitch=1.0}={}){ if(!window.speechSynthesis||save.muted||!text) return;
+  const u=new SpeechSynthesisUtterance(text); u.rate=rate; u.pitch=pitch; const v=pickVoice(); if(v) u.voice=v; speechSynthesis.speak(u); }
+
+/* little game tones */
+let audioCtx=null;
+function actx(){ if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return audioCtx; }
+function tone(freq,start,dur,type="sine",vol=.16){ const c=actx(); if(!c||save.muted) return;
+  const o=c.createOscillator(),g=c.createGain(); o.type=type; o.frequency.value=freq; o.connect(g); g.connect(c.destination);
+  const t=c.currentTime+start; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.02); g.gain.exponentialRampToValueAtTime(.0001,t+dur); o.start(t); o.stop(t+dur+.02); }
+function sfxClick(){ tone(520,0,.07,"square",.05); }
+function sfxCorrect(){ [523,659,784,1046].forEach((f,i)=>tone(f,i*.09,.22,"triangle",.15)); }
+function sfxWrong(){ tone(300,0,.16,"sine",.12); tone(210,.12,.22,"sine",.12); }
+function sfxWin(){ [523,587,659,784,880,1046].forEach((f,i)=>tone(f,i*.1,.28,"triangle",.15)); }
+function sfxBadge(){ [784,988,1318].forEach((f,i)=>tone(f,i*.12,.32,"sine",.15)); }
+function sfxTick(){ tone(880,0,.05,"square",.05); }
+
+/* =====================================================================
+   4) HELPERS + EFFECTS
+   ===================================================================== */
+const app=document.getElementById("app");
+const rand=a=>a[Math.floor(Math.random()*a.length)];
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function confetti(n=24){ const layer=document.createElement("div"); layer.className="confetti";
+  const emo=['🎉','⭐','🌟','✨','🎈','🥳','💫','🌈','🍭','🎊','👏','🏅'];
+  for(let i=0;i<n;i++){ const s=document.createElement("span"); s.textContent=rand(emo);
+    s.style.left=Math.random()*100+"vw"; s.style.fontSize=(20+Math.random()*26)+"px";
+    s.style.animationDuration=(1.4+Math.random()*1.3)+"s"; s.style.animationDelay=(Math.random()*.3)+"s"; layer.appendChild(s); }
+  document.body.appendChild(layer); setTimeout(()=>layer.remove(),3000); }
+function toast(msg,ok=true){ const t=document.createElement("div"); t.className="toast"+(ok?"":" oops");
+  t.innerHTML=`<div class="bubble">${msg}</div>`; document.body.appendChild(t); setTimeout(()=>t.remove(),1150); }
+
+const BADGES={
+  first:{emoji:"🌟",name:"First Word!",test:()=>knownCount()>=1},
+  ten:{emoji:"🔟",name:"10 Words!",test:()=>knownCount()>=10},
+  twentyfive:{emoji:"🎯",name:"25 Words!",test:()=>knownCount()>=25},
+  fifty:{emoji:"💎",name:"50 Words!",test:()=>knownCount()>=50},
+  perfect:{emoji:"⚡",name:"Perfect Round!",test:()=>save._perfect},
+  champ:{emoji:"🏆",name:"Spelling Champion!",test:()=>TIERS.every((t,i)=>t.words.every(o=>save.known[o.w]))},
+};
+function checkBadges(){ const e=[]; for(const k in BADGES){ if(!save.badges[k]&&BADGES[k].test()){ save.badges[k]=true; e.push(BADGES[k]); } } if(e.length) persist(); return e; }
+function showBadge(b,after){ sfxBadge(); confetti(28);
+  const el=document.createElement("div"); el.className="badgePop";
+  el.innerHTML=`<div class="card"><div class="emoji">${b.emoji}</div><h2 style="color:#7c3aed;margin:8px 0">New Badge!</h2>
+    <div style="font-size:24px;font-weight:900">${b.name}</div><button class="btn yellow" style="margin-top:16px">Yay! 🎉</button></div>`;
+  document.body.appendChild(el); playPhrase("superstar","New badge! "+b.name);
+  el.querySelector("button").onclick=()=>{ sfxClick(); el.remove(); if(after) after(); }; }
+function flushBadges(after){ const earned=checkBadges(); if(!earned.length){ if(after) after(); return; }
+  let i=0; const nx=()=>{ if(i<earned.length) showBadge(earned[i++],nx); else if(after) after(); }; nx(); }
+
+function enterFullscreen(){ const el=document.documentElement; const fn=el.requestFullscreen||el.webkitRequestFullscreen; if(fn&&!document.fullscreenElement){ try{ fn.call(el); }catch(e){} } }
+function toggleFullscreen(){ if(document.fullscreenElement||document.webkitFullscreenElement){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); } else enterFullscreen(); }
+document.getElementById("fsBtn").onclick=()=>{ sfxClick(); toggleFullscreen(); };
+const muteBtn=document.getElementById("muteBtn");
+function refreshMute(){ muteBtn.textContent=save.muted?"🔇":"🔊"; }
+muteBtn.onclick=()=>{ save.muted=!save.muted; persist(); refreshMute(); if(save.muted) stopAudio(); else sfxClick(); };
+refreshMute();
+
+/* =====================================================================
+   5) HOME + PROFILE
+   ===================================================================== */
+function showHome(){
+  cleanupWord(); app.classList.remove("playing"); stopAudio();
+  app.innerHTML=`
+    <div class="screen">
+      <h1 class="logo">🐨 Spell Quest</h1>
+      <p class="tag">See the picture • Spell the word • Get 10/10 to level up!</p>
+      <div class="statbar">
+        <div class="chip">📚 ${knownCount()} words known</div>
+        <div class="chip">🏅 ${Object.keys(save.badges).length} badges</div>
+        ${cloudReady()?`<div class="chip cloudStat">${cloudStatusText()}</div>`:""}
+      </div>
+      <div class="statbar" style="margin-top:-8px">
+        <button class="btn pink" id="profBtn" style="padding:9px 20px;font-size:19px">👤 My Words</button>
+        <button class="btn blue" id="cloudBtn" style="padding:9px 18px;font-size:18px">☁️ Cloud Sync</button>
+      </div>
+      <div class="levels">
+        ${TIERS.map((L,i)=>{ const state = i<save.tier?"done" : i===save.tier?"current":"locked";
+          const got=tierKnown(i),tot=L.words.length; const pct=Math.round(got/tot*100);
+          const tag = state==="locked"?"🔒 Locked" : state==="done"?"✅ Done":"▶ Play";
+          const badge2 = state==="done"?'<div class="badge2">⭐</div>' : state==="locked"?'<div class="badge2">🔒</div>':'';
+          return `<div class="level ${L.cls} ${state==="locked"?"locked":""}" data-i="${i}" data-state="${state}">
+            <div class="face">${badge2}<div class="emoji">${L.emoji}</div><h3>${L.title}</h3><p>${L.subtitle}</p>
+              <div class="progwrap"><i style="width:${pct}%"></i></div>
+              <p style="margin-top:7px">${state==="locked"?"Get 10/10 to unlock":`${got}/${tot} learned · ${tag}`}</p>
+            </div></div>`; }).join("")}
+      </div>
+      <p class="muted-note">Tip: tap 🔊 to hear the word. Press ⛶ for full screen. Photos from Wikipedia.</p>
+    </div>`;
+  document.getElementById("profBtn").onclick=()=>{ sfxClick(); showProfile(); };
+  document.getElementById("cloudBtn").onclick=()=>{ sfxClick(); showCloud(); };
+  app.querySelectorAll(".level").forEach(el=>{ el.onclick=()=>{ const i=+el.dataset.i;
+    if(el.dataset.state!=="locked"){ sfxClick(); startTier(i); } else { sfxWrong(); toast("🔒 Locked!",false); playPhrase("tryagain","Get ten out of ten to unlock this level."); } }; });
+}
+
+function showProfile(){
+  cleanupWord(); app.classList.remove("playing"); stopAudio();
+  const total=knownCount();
+  app.innerHTML=`
+    <div class="screen">
+      <div class="top" style="max-width:900px;margin:0 auto 10px">
+        <button class="btn ghost" id="back">⬅ Home</button>
+        <div class="chip">👤 My Words — ${total} known</div>
+        <div style="width:70px"></div>
+      </div>
+      <div class="controls" style="justify-content:center;margin:0 auto 10px">
+        <button class="btn blue" id="expBtn" style="font-size:19px">💾 Save Backup</button>
+        <button class="btn yellow" id="impBtn" style="font-size:19px">📂 Restore</button>
+        <input type="file" id="impFile" accept="application/json,.json" style="display:none">
+      </div>
+      <p class="muted-note" style="color:#5b3fb0;margin:0 auto 12px;max-width:640px">Progress saves automatically on this device. Tap <b>Save Backup</b> before big changes or to move to another device — then <b>Restore</b> it there.</p>
+      <div class="card" style="text-align:left">
+        ${total===0?'<p style="text-align:center;font-size:22px">No words yet — play a level to start learning! 🌱</p>':''}
+        ${TIERS.map((L,i)=>{ const kw=L.words.filter(o=>save.known[o.w]); if(!kw.length) return "";
+          return `<div class="ptier" style="color:#6d28d9">${L.emoji} ${L.title} · ${L.subtitle} (${kw.length}/${L.words.length})</div>
+            <div class="pgrid" style="justify-content:flex-start;max-height:none">
+            ${kw.map(o=>`<div class="pcard"><img src="${imgSrc(o.w)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="pf">${o.e}</div><div class="pw">${o.w}</div></div>`).join("")}
+            </div>`; }).join("")}
+      </div>
+    </div>`;
+  document.getElementById("back").onclick=()=>{ sfxClick(); showHome(); };
+  document.getElementById("expBtn").onclick=exportProgress;
+  document.getElementById("impBtn").onclick=()=>{ sfxClick(); document.getElementById("impFile").click(); };
+  document.getElementById("impFile").onchange=(e)=>{ if(e.target.files&&e.target.files[0]) importProgress(e.target.files[0]); };
+}
+
+function showCloud(){
+  cleanupWord(); app.classList.remove("playing"); stopAudio();
+  app.innerHTML=`
+    <div class="screen">
+      <div class="top" style="max-width:720px;margin:0 auto 10px">
+        <button class="btn ghost" id="back">⬅ Home</button>
+        <div class="chip">☁️ Cloud Sync</div><div style="width:70px"></div>
+      </div>
+      <div class="card" style="max-width:720px;margin:0 auto;text-align:left">
+        <p style="font-size:16px;margin:0 0 8px">Sync progress across devices with a free <b>Supabase</b> database that <b>you own</b>. One-time setup (~5 min):</p>
+        <ol style="font-size:15px;line-height:1.6;padding-left:20px;margin:0 0 10px">
+          <li>Open <b>supabase.com</b>, sign up free, click <b>New project</b>.</li>
+          <li>Open <b>SQL Editor</b> → paste the code below → <b>Run</b>.</li>
+          <li>Open <b>Project Settings → API</b>, copy <b>Project URL</b> and the <b>anon public</b> key into the boxes.</li>
+        </ol>
+        <textarea id="sqlBox" class="cin" readonly rows="4" style="font-family:monospace;font-size:12px;resize:vertical">${SETUP_SQL}</textarea>
+        <button class="btn yellow" id="copySql" style="font-size:15px;margin:0 0 14px">📋 Copy setup code</button>
+        <label class="clab">Project URL</label>
+        <input id="cUrl" class="cin" placeholder="https://xxxx.supabase.co" value="${cloud.url||""}">
+        <label class="clab">Anon public key</label>
+        <input id="cKey" class="cin" placeholder="eyJhbGciOi..." value="${cloud.key||""}">
+        <label class="clab">Profile code <span style="font-weight:400">— use the SAME code on each device to share progress</span></label>
+        <div style="display:flex;gap:8px"><input id="cProf" class="cin" placeholder="e.g. arjun-2026" value="${cloud.profile||""}" style="flex:1;margin-bottom:0"><button class="btn ghost" id="genCode" style="font-size:15px">🎲 New</button></div>
+        <div class="controls" style="justify-content:flex-start;margin-top:14px">
+          <button class="btn play" id="connect">✅ Save &amp; Sync</button>
+          <button class="btn blue" id="syncNow">🔄 Sync Now</button>
+          ${cloudReady()?'<button class="btn del" id="cloudOff">Turn off</button>':''}
+        </div>
+        <p class="cloudStat" style="font-size:15px;font-weight:800;margin-top:12px;min-height:20px">${cloudStatusText()}</p>
+        <p class="muted-note" style="color:#8a7bbf;margin-top:6px">Progress is stored in your own database. The saved data is just a list of spelling words &amp; levels — not sensitive — but keep your key and profile code to yourself.</p>
+      </div>
+    </div>`;
+  document.getElementById("back").onclick=()=>{ sfxClick(); showHome(); };
+  document.getElementById("genCode").onclick=()=>{ document.getElementById("cProf").value="kid-"+Math.random().toString(36).slice(2,8); };
+  document.getElementById("copySql").onclick=()=>{ const t=document.getElementById("sqlBox"); t.focus(); t.select();
+    (navigator.clipboard?navigator.clipboard.writeText(SETUP_SQL):Promise.reject())
+      .then(()=>toast("Copied! 📋")).catch(()=>{ try{document.execCommand("copy"); toast("Copied! 📋");}catch(e){ toast("Select the code to copy",false);} }); };
+  const off=document.getElementById("cloudOff"); if(off) off.onclick=()=>{ sfxClick(); cloud={url:"",key:"",profile:""}; saveCloud(); cloudStatus="off"; showCloud(); };
+  document.getElementById("connect").onclick=async()=>{
+    cloud.url=document.getElementById("cUrl").value.trim();
+    cloud.key=document.getElementById("cKey").value.trim();
+    cloud.profile=document.getElementById("cProf").value.trim();
+    if(!cloudReady()){ sfxWrong(); toast("Fill in all three boxes",false); return; }
+    saveCloud(); sfxClick();
+    const r=await cloudSyncNow();
+    if(r.ok){ sfxCorrect(); confetti(20); toast("Connected! ☁️ +"+(r.added||0)+" words"); }
+    else { sfxWrong(); toast("Saved, but couldn't reach the cloud",false); }
+    showCloud();
+  };
+  document.getElementById("syncNow").onclick=async()=>{ if(!cloudReady()){ toast("Set it up first",false); return; }
+    sfxClick(); const r=await cloudSyncNow();
+    if(r.ok){ sfxCorrect(); toast("Synced! ☁️ +"+(r.added||0)+" words"); } else { sfxWrong(); toast("Couldn't reach the cloud",false); }
+    showCloud(); };
+}
+
+/* =====================================================================
+   6) ROUND ENGINE
+   ===================================================================== */
+let round=null;
+let timer={id:null,total:0,left:0};
+let word="", emoji="", slotEls=[], typed=[], solved=false, keyHandler=null;
+
+function clearTimer(){ if(timer.id){ clearInterval(timer.id); timer.id=null; } }
+function cleanupWord(){ clearTimer(); if(keyHandler){ document.removeEventListener("keydown",keyHandler); keyHandler=null; } }
+
+/* pick the 10 words for a round: carried-over wrong words + new same-level words */
+function buildRound(ti){
+  const pool=TIERS[ti].words.map(o=>o.w);
+  const practice=(save.practice[ti]||[]).filter(w=>pool.includes(w));
+  let list=[...practice];
+  for(const w of shuffle(pool)){ if(list.length>=ROUND_SIZE) break; if(!save.known[w] && !list.includes(w)) list.push(w); }
+  for(const w of shuffle(pool)){ if(list.length>=ROUND_SIZE) break; if(!list.includes(w)) list.push(w); } // review knowns to fill
+  let k=0; while(list.length<ROUND_SIZE){ list.push(pool[k%pool.length]); k++; }                          // last resort
+  return shuffle(list.slice(0,ROUND_SIZE)).map(w=>({w, e:EMOJI[w]}));
+}
+function startTier(ti){
+  enterFullscreen();
+  round={ ti, words:buildRound(ti), i:0, correct:[], wrong:[] };
+  renderWord();
+}
+
+const KEYROWS=["ABCDEFG","HIJKLMN","OPQRSTU","VWXYZ"];
+function stagePic(){
+  return `<img class="picture" id="pic" alt="" src="${imgSrc(word)}"
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+    <div class="picfallback">${emoji}</div>`;
+}
+
+function renderWord(){
+  cleanupWord(); app.classList.add("playing");
+  const obj=round.words[round.i]; word=obj.w; emoji=obj.e; typed=[]; solved=false;
+  const total=round.words.length; const pct=Math.round(round.i/total*100);
+  app.innerHTML=`
+    <div class="sidepanel left"><div class="sphead">✅ Got it!</div><div class="spchips">
+      ${round.correct.map(o=>`<div class="spchip"><span class="ce">${o.e}</span>${o.w}</div>`).join("")}</div></div>
+    <div class="sidepanel right"><div class="sphead">📚 Practice</div><div class="spchips">
+      ${round.wrong.map(o=>`<div class="spchip"><span class="ce">${o.e}</span>${o.w}</div>`).join("")}</div></div>
+    <div class="screen">
+      <div class="top">
+        <button class="btn ghost" id="quit">⬅</button>
+        <div class="timerwrap"><div class="tbar"><i id="tbar"></i></div><div class="chip tsec" id="tsec">⏱ --</div></div>
+        <div class="chip">${Math.min(round.i+1,total)}/${total}</div>
+      </div>
+      <div class="card">
+        <div class="picwrap">${stagePic()}</div>
+        <button class="speaker" id="spk">🔊</button>
+        <div class="slots" id="slots"></div>
+        <div class="keyboard" id="kb">
+          ${KEYROWS.map(r=>`<div class="krow">${[...r].map(l=>`<button class="key" data-k="${l}">${l}</button>`).join("")}</div>`).join("")}
+        </div>
+        <div class="controls">
+          <button class="btn del" id="bksp">⌫ Delete</button>
+          <button class="btn check" id="check" disabled>✓ Check!</button>
+        </div>
+      </div>
+    </div>`;
+  slotEls=[]; const slots=document.getElementById("slots");
+  for(let i=0;i<word.length;i++){ const d=document.createElement("div"); d.className="slot"; slots.appendChild(d); slotEls.push(d); }
+
+  document.getElementById("quit").onclick=()=>{ sfxClick(); cleanupWord(); showHome(); };
+  document.getElementById("spk").onclick=()=>{ sfxClick(); sayWord(word); };
+  document.getElementById("bksp").onclick=backspace;
+  document.getElementById("check").onclick=submit;
+  document.querySelectorAll("#kb .key[data-k]").forEach(b=>{ b.onclick=()=>pressLetter(b.dataset.k.toLowerCase()); });
+  keyHandler=(e)=>{ if(e.metaKey||e.ctrlKey||e.altKey) return;
+    if(e.key==="Backspace"){ e.preventDefault(); backspace(); }
+    else if(e.key==="Enter"){ if(typed.length===word.length) submit(); }
+    else if(/^[a-zA-Z]$/.test(e.key)){ pressLetter(e.key.toLowerCase()); } };
+  document.addEventListener("keydown",keyHandler);
+
+  updateSlots(); sayWord(word); startTimer(timeForWord(word));
+}
+
+function updateSlots(){ slotEls.forEach((el,i)=>{ el.textContent=(typed[i]||"").toUpperCase();
+    el.className="slot"+(typed[i]?" filled":""); });
+  const c=document.getElementById("check"); if(c) c.disabled = typed.length!==word.length; }
+function pressLetter(l){ if(solved) return; if(typed.length<word.length){ typed.push(l); sfxClick(); updateSlots(); } }
+function backspace(){ if(solved) return; if(typed.length){ typed.pop(); sfxClick(); updateSlots(); } }
+
+function startTimer(seconds){
+  clearTimer(); timer.total=seconds; timer.left=seconds;
+  const bar=document.getElementById("tbar"), sec=document.getElementById("tsec");
+  const paint=()=>{ const r=Math.max(0,timer.left/timer.total); if(bar){ bar.style.width=(r*100)+"%";
+      bar.style.background=r>.5?"linear-gradient(90deg,#4ade80,#22c55e)":r>.25?"linear-gradient(90deg,#fbbf24,#f59e0b)":"linear-gradient(90deg,#fb7185,#ef4444)"; }
+    if(sec) sec.textContent="⏱ "+Math.ceil(timer.left)+"s"; };
+  paint();
+  timer.id=setInterval(()=>{ timer.left-=0.1;
+    if(timer.left<=5 && Math.abs(timer.left-Math.round(timer.left))<0.05 && timer.left>0) sfxTick();
+    if(timer.left<=0){ timer.left=0; paint(); clearTimer(); submit(true); } else paint(); },100);
+}
+
+function submit(timeUp){
+  if(solved) return; solved=true; cleanupWord();
+  const correct = typed.join("")===word;
+  if(correct) onCorrect(); else onWrong(!!timeUp);
+}
+
+function onCorrect(){
+  const obj=round.words[round.i];
+  round.correct.push(obj);
+  const wasKnown=!!save.known[word];
+  save.known[word]=true; save.points++; removePractice(round.ti, word);
+  persist();
+  slotEls.forEach(el=>el.classList.add("ok"));
+  sfxCorrect(); confetti(18); playPraise();
+  toast(rand(["Yes!","Great!","Woohoo!","⭐","Nice!"]));
+  flyToPanel("left", emoji, word);
+  round.i++;
+  setTimeout(()=>{ flushBadges(()=>{ round.i<round.words.length?renderWord():roundEnd(); }); }, 1150);
+}
+
+function onWrong(timeUp){
+  const obj=round.words[round.i];
+  round.wrong.push(obj); addPractice(round.ti, word); persist();
+  typed=[...word]; updateSlots(); slotEls.forEach(el=>el.className="slot reveal");
+  const c=document.getElementById("check"); if(c) c.disabled=true;
+  sfxWrong();
+  toast(timeUp?"Time's up! ⏰":"Let's learn it! 😊", false);
+  setTimeout(()=>spellOutWord(word), 250);
+  flyToPanel("right", emoji, word);
+  round.i++;
+  setTimeout(()=>{ round.i<round.words.length?renderWord():roundEnd(); }, 2100);
+}
+
+function flyToPanel(side, emo, wd){
+  const panel=document.querySelector(".sidepanel."+side); const slots=document.getElementById("slots");
+  if(!panel||!slots) return;
+  const from=slots.getBoundingClientRect(), to=panel.getBoundingClientRect();
+  const fly=document.createElement("div"); fly.className="spchip flying";
+  fly.innerHTML=`<span class="ce">${emo}</span>${wd}`;
+  fly.style.left=(from.left+from.width/2-28)+"px"; fly.style.top=(from.top)+"px";
+  document.body.appendChild(fly);
+  requestAnimationFrame(()=>{ fly.style.left=(side==="left"?to.left+16:to.left+16)+"px"; fly.style.top=(to.top+34)+"px"; fly.style.transform="scale(.7)"; fly.style.opacity="0.15"; });
+  setTimeout(()=>fly.remove(),760);
+}
+
+function roundEnd(){
+  cleanupWord(); app.classList.remove("playing"); stopAudio();
+  const ti=round.ti, L=TIERS[ti];
+  const score=round.correct.length, perfect=score===ROUND_SIZE;
+  let unlockedNext=false, champion=false;
+  if(perfect){
+    save._perfect=true;
+    if(ti===save.tier && save.tier<TIERS.length-1){ save.tier++; unlockedNext=true; }
+    else if(ti===save.tier && save.tier===TIERS.length-1){ champion = TIERS.every((t)=>t.words.every(o=>save.known[o.w])); }
+    persist();
+  }
+  sfxWin(); confetti(perfect?46:16);
+  if(perfect) playPhrase("perfect","Perfect! Ten out of ten!"); else playPhrase("welldone","Good work! Keep practicing.");
+  const stars="⭐".repeat(Math.max(1,Math.min(3, Math.round(score/10*3)||1)));
+  const wrongHtml = round.wrong.length? `
+      <div style="font-size:20px;font-weight:900;color:#b45309;margin-top:12px">📚 Words to practice next time:</div>
+      <div class="wrongList">${round.wrong.map(o=>`<div class="wl"><span class="ce">${o.e}</span>${o.w}</div>`).join("")}</div>` : "";
+  app.innerHTML=`
+    <div class="screen"><div class="card">
+      <div style="font-size:64px">${perfect?"🏆":"🌟"}</div>
+      <h2 style="color:${perfect?"#16a34a":"#7c3aed"};font-size:clamp(26px,6vw,44px);margin:4px 0">${perfect?"Perfect Round!":"Round Complete!"}</h2>
+      <div class="scoreBig">${score} / 10</div>
+      <div class="starline">${stars}</div>
+      ${perfect && unlockedNext? `<p style="font-size:21px;color:#7c3aed;font-weight:900;margin:8px 0">🔓 ${TIERS[ti+1].title} unlocked!</p>`:""}
+      ${perfect && champion? `<p style="font-size:21px;color:#7c3aed;font-weight:900;margin:8px 0">🏆 You finished every level — Champion!</p>`:""}
+      ${wrongHtml}
+      <div class="controls" style="margin-top:16px">
+        ${perfect && unlockedNext? `<button class="btn play big" id="next">Next Level ➡</button>`:""}
+        ${!perfect? `<button class="btn play big" id="again">Keep Practicing 💪</button>`:""}
+        ${perfect && !unlockedNext? `<button class="btn blue" id="again">Play Again 🔁</button>`:""}
+        <button class="btn pink" id="prof">👤 My Words</button>
+        <button class="btn ghost" id="home">🏠 Home</button>
+      </div>
+    </div></div>`;
+  const nx=document.getElementById("next"); if(nx) nx.onclick=()=>{ sfxClick(); startTier(save.tier); };
+  const ag=document.getElementById("again"); if(ag) ag.onclick=()=>{ sfxClick(); startTier(ti); };
+  document.getElementById("prof").onclick=()=>{ sfxClick(); showProfile(); };
+  document.getElementById("home").onclick=()=>{ sfxClick(); showHome(); };
+  flushBadges();
+}
+
+/* =====================================================================
+   7) START
+   ===================================================================== */
+(function(){ const b=document.getElementById("bubbles"); const e=['🎈','⭐','🌟','☁️','🦋','🌸','🍭','🐢'];
+  for(let i=0;i<14;i++){ const s=document.createElement("span"); s.textContent=e[i%e.length];
+    s.style.left=Math.random()*100+"vw"; s.style.animationDuration=(10+Math.random()*14)+"s";
+    s.style.animationDelay=(Math.random()*12)+"s"; s.style.fontSize=(24+Math.random()*30)+"px"; b.appendChild(s);} })();
+persist();      // lock migrated/loaded progress into the permanent save key right away
+showHome();
+if(cloudReady()) cloudSyncNow().then(()=>{ if(document.querySelector(".logo")) showHome(); });   // pull cloud progress on start
+</script>
+</body>
+</html>
