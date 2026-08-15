@@ -21,9 +21,15 @@ logging.basicConfig(
 )
 settings = get_settings()
 
-# The photos and audio already live in the repo root; serve them so the API is
-# self-contained in development.
-MEDIA_ROOT = Path(__file__).resolve().parents[2]
+# adaptive-platform/backend/app/main.py -> adaptive-platform/
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+WEB_ROOT = PROJECT_ROOT / "web"
+
+# Photos and audio are shipped with the live game and shared by both apps.
+# Override with ASSETS_ROOT if you ever move or duplicate them.
+ASSETS_ROOT = Path(
+    os.getenv("ASSETS_ROOT", PROJECT_ROOT.parent / "live-game")
+).resolve()
 
 
 @asynccontextmanager
@@ -62,11 +68,14 @@ app.include_router(learning.router, prefix="/api")
 app.include_router(parent.router, prefix="/api")
 
 for folder in ("images", "audio"):
-    path = MEDIA_ROOT / folder
+    path = ASSETS_ROOT / folder
     if path.is_dir():
         app.mount(f"/media/{folder}", StaticFiles(directory=path), name=folder)
+    else:
+        logging.getLogger("adaptive").warning(
+            "assets missing: %s — set ASSETS_ROOT to the folder holding images/ and audio/", path
+        )
 
-WEB_ROOT = MEDIA_ROOT / "web"
 if WEB_ROOT.is_dir():
     app.mount("/app", StaticFiles(directory=WEB_ROOT, html=True), name="web")
 

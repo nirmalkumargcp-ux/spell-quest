@@ -1,7 +1,6 @@
 .DS_Store
 .claude/
-backend/.venv/
-backend/*.db
-backend/__pycache__/
 **/__pycache__/
 *.pyc
+adaptive-platform/backend/.venv/
+adaptive-platform/backend/*.db

@@ -1,0 +1,45 @@
+# Publishes live-game/ to https://nirmalkumargcp-ux.github.io/spell-quest/
+#
+# The game used to sit at the repository root, which is what GitHub Pages
+# serves by default. Now that it lives in its own folder, this workflow
+# uploads that folder as the site root — so the public URL is unchanged and
+# every path inside the game (images/…, audio/…) still resolves.
+name: Deploy live game
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "live-game/**"
+      - ".github/workflows/deploy-live-game.yml"
+  workflow_dispatch:        # lets you redeploy by hand from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false   # never interrupt a deploy of a live children's app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail early if the game is missing
+        run: test -f live-game/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: live-game
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
