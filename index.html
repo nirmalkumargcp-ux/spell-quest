@@ -346,10 +346,12 @@ async function cloudGet(id){
   const res=await fetch(u,{headers:cloudHeaders()}); if(!res.ok) throw new Error("pull "+res.status);
   const rows=await res.json(); return rows&&rows[0]?rows[0].data:null;
 }
-async function cloudPut(id,data){
+async function cloudPut(id,data,opts){
   const u=cloudBase()+"/rest/v1/profiles?on_conflict=id";
   const body=[{id, data, updated_at:new Date().toISOString()}];
-  const res=await fetch(u,{method:"POST", headers:cloudHeaders({Prefer:"resolution=merge-duplicates"}), body:JSON.stringify(body)});
+  const init={method:"POST", headers:cloudHeaders({Prefer:"resolution=merge-duplicates"}), body:JSON.stringify(body)};
+  if(opts&&opts.keepalive) init.keepalive=true;   // still delivered if the tab is closing
+  const res=await fetch(u,init);
   if(!res.ok) throw new Error("push "+res.status);
 }
 async function cloudDelete(id){
@@ -381,7 +383,7 @@ function scheduleRosterPush(){ if(!cloudReady()) return; clearTimeout(rosterTime
   rosterTimer=setTimeout(()=>{ rosterPush().catch(()=>{}); }, 1200); }
 let cloudStatus="off";   // off | syncing | ok | error
 function cloudStatusText(){ if(!cloudReady()) return "☁️ Not set up";
-  return cloudStatus==="syncing"?"☁️ Syncing…":cloudStatus==="ok"?"☁️ Synced":cloudStatus==="error"?"⚠️ Offline (saved on device)":"☁️ Ready"; }
+  return cloudStatus==="syncing"?"☁️ Saving…":cloudStatus==="ok"?"☁️ Saved":cloudStatus==="error"?"⚠️ Saved on device — will sync":"☁️ Ready"; }
 function updateCloudStatus(){ document.querySelectorAll(".cloudStat").forEach(el=>el.textContent=cloudStatusText()); }
 async function cloudSyncNow(){
   if(!cloudReady() || !cloudRowId()) return {ok:false};
@@ -393,22 +395,42 @@ async function cloudSyncNow(){
     if(cloudRowId()!==id) return {ok:false, stale:true};        // switched players while loading — abandon
     const added=applyRemote(remote); persistLocalOnly();
     await cloudPut(id, save);
+    pendingPush=null; dirty=false;
     rosterPush().catch(()=>{});
     cloudStatus="ok"; updateCloudStatus(); return {ok:true, added};
   }catch(e){ cloudStatus="error"; updateCloudStatus(); return {ok:false, error:String(e)}; }
 }
-let pushTimer=null, pendingPush=null;
+/* Saving is automatic: every answer queues a push a moment later. `dirty`
+   stays true until the cloud confirms, so we can retry instead of waiting
+   for the next answer (or a manual tap on Cloud Sync). */
+let pushTimer=null, pendingPush=null, dirty=false;
 function scheduleCloudPush(){
   const id=cloudRowId(); if(!cloudReady()||!id) return;
   pendingPush={id, data:JSON.parse(JSON.stringify(save))};      // snapshot WHO and WHAT now, not at send time
+  dirty=true;
   clearTimeout(pushTimer);
-  pushTimer=setTimeout(()=>{ const job=pendingPush; pendingPush=null; if(!job) return;
-    cloudStatus="syncing"; updateCloudStatus();
-    cloudPut(job.id, job.data).then(()=>{ cloudStatus="ok"; updateCloudStatus(); })
-      .catch(()=>{ cloudStatus="error"; updateCloudStatus(); }); }, 1500); }
-/* send any queued push immediately — used before switching players */
-function flushCloudPush(){ clearTimeout(pushTimer); const job=pendingPush; pendingPush=null;
-  if(job) cloudPut(job.id, job.data).catch(()=>{}); }
+  pushTimer=setTimeout(()=>sendPending(), 1200);
+}
+function sendPending(opts){
+  const id=cloudRowId(); if(!cloudReady()||!id) return Promise.resolve();
+  const job=pendingPush || {id, data:JSON.parse(JSON.stringify(save))};
+  cloudStatus="syncing"; updateCloudStatus();
+  return cloudPut(job.id, job.data, opts).then(()=>{
+      if(pendingPush===job) pendingPush=null;
+      dirty=false; cloudStatus="ok"; updateCloudStatus();
+    }).catch(()=>{ cloudStatus="error"; updateCloudStatus(); });   // stays dirty → retried below
+}
+/* send immediately — before switching players, finishing a round, or closing the tab */
+function flushCloudPush(opts){ clearTimeout(pushTimer); return sendPending(opts); }
+
+/* keep trying until it lands, without the child (or you) doing anything */
+window.addEventListener("online", ()=>{ if(dirty) flushCloudPush(); });
+window.addEventListener("pagehide", ()=>{ if(dirty) flushCloudPush({keepalive:true}); });
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState==="hidden"){ if(dirty) flushCloudPush({keepalive:true}); }
+  else if(dirty) flushCloudPush();
+});
+setInterval(()=>{ if(dirty && navigator.onLine!==false) sendPending(); }, 20000);
 
 /* =====================================================================
    3) AUDIO — bundled Samantha voice clips (natural, offline). Falls back
@@ -934,6 +956,7 @@ function roundEnd(){
     else if(ti===save.tier && save.tier===TIERS.length-1){ champion = TIERS.every((t)=>t.words.every(o=>save.known[o.w])); }
     persist();
   }
+  flushCloudPush();                 // don't wait — save the finished round right away
   sfxWin(); confetti(perfect?46:16);
   if(perfect) playPhrase("perfect","Perfect! Ten out of ten!"); else playPhrase("welldone","Good work! Keep practicing.");
   const stars="⭐".repeat(Math.max(1,Math.min(3, Math.round(score/10*3)||1)));
