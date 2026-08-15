@@ -156,7 +156,12 @@ def notebook(
         dims = states.get(concept.id, {})
         if not dims and not include_unfound:
             continue
-        scores = {d: round(s.mastery_score, 3) for d, s in dims.items()}
+        # Always report all four dimensions so the card back is complete —
+        # an untouched dimension is genuinely 0, not missing.
+        scores = {
+            d.value: round(dims[d.value].mastery_score, 3) if d.value in dims else 0.0
+            for d in Dimension
+        }
         if not dims:
             status = "not_found"
         else:

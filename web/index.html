@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Field Guide — Spell Quest</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦉</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Karla:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ===================================================================
+   FIELD GUIDE — the child-facing design system.
+   Green = mastered / go. Orange = new / discovery. Blue = review.
+   There is no red in this palette: a miss is "not yet", never wrong.
+   =================================================================== */
+:root{
+  --paper:#f6f2e8; --card:#fffdf7; --rule:#e2dccb; --ink:#23231d; --ink-faint:#8d8877;
+  --ink-soft:#5f5a4d; --track:#efe9da;
+  --green:#1f6f5c; --green-dark:#175346; --green-tint:#dbe9e3;
+  --orange:#c07a3e; --orange-dark:#94592a; --orange-tint:#f6e6d5;
+  --blue:#4a6fa5; --blue-dark:#33507b; --blue-tint:#dde5f1;
+  --r-chip:10px; --r-btn:14px; --r-card:18px;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --serif:'Instrument Serif',Georgia,serif;
+  --body:'Karla',system-ui,-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:18px;line-height:1.5;
+     -webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+
+/* motion — nothing over 400ms, all of it optional */
+@keyframes rise{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.14)}100%{transform:scale(1)}}
+@keyframes nudge{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes sway{0%,100%{transform:rotate(-2.5deg)}50%{transform:rotate(2.5deg)}}
+.rise{animation:rise 280ms var(--ease) both}
+.pop{animation:pop 240ms var(--ease)}
+.nudge{animation:nudge 320ms var(--ease)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* layout */
+#app{min-height:100%;display:flex;flex-direction:column;padding:24px 24px 104px;max-width:640px;margin:0 auto}
+.screen{flex:1;display:flex;flex-direction:column;gap:16px}
+.label{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+.display{font-family:var(--serif);font-size:clamp(32px,8vw,50px);line-height:1.05;font-weight:400;margin:0}
+.title{font-family:var(--serif);font-size:30px;font-weight:400;margin:0}
+.body{font-size:18px;color:var(--ink-soft);margin:0}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-card);padding:22px}
+
+/* header */
+.topbar{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.avatar{width:42px;height:42px;border-radius:12px;background:var(--green);display:flex;align-items:center;
+        justify-content:center;font-size:22px;flex:none}
+.who{display:flex;flex-direction:column;min-width:0}
+.who .name{font-family:var(--serif);font-size:25px;line-height:1.05}
+.count{margin-left:auto;text-align:right;flex:none}
+.count b{font-family:var(--serif);font-size:24px;font-weight:400;display:block;line-height:1}
+
+/* buttons — one green per screen */
+.btn{min-height:64px;padding:0 32px;border-radius:var(--r-btn);font-size:19px;font-weight:700;
+     display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:transform 120ms var(--ease)}
+.btn:active{transform:translateY(2px)}
+.btn-primary{background:var(--green);color:var(--card);width:100%}
+.btn-primary:hover{background:var(--green-dark)}
+.btn-secondary{background:var(--card);border:2px solid var(--rule);color:var(--ink);font-weight:600}
+.btn-secondary:hover{border-color:var(--green);color:var(--green)}
+.btn-quiet{color:var(--ink-soft);font-weight:600}
+.btn-quiet:hover{background:#f2ede0;color:var(--ink)}
+.btn[disabled]{background:var(--rule);color:#a19b8b;pointer-events:none}
+
+/* the audio button is the largest control in the system */
+.speaker{width:96px;height:96px;border-radius:30px;background:var(--blue);color:var(--card);
+         display:flex;align-items:center;justify-content:center;flex:none;transition:transform 120ms var(--ease)}
+.speaker:active{transform:scale(.95)}
+.speaker svg{width:44px;height:44px}
+.speaker.small{width:56px;height:56px;border-radius:18px}
+.speaker.small svg{width:26px;height:26px}
+
+/* progress */
+.pips{display:flex;gap:6px}
+.pips i{flex:1;height:8px;border-radius:4px;background:var(--rule);transition:background 280ms var(--ease)}
+.pips i.done{background:var(--green)}
+.pips i.miss{background:var(--blue)}
+.track{height:14px;border-radius:7px;background:var(--track);overflow:hidden}
+.track > i{display:block;height:100%;border-radius:7px;background:var(--green);transition:width 1.4s var(--ease)}
+
+/* question */
+.plate{width:100%;aspect-ratio:1.35;border-radius:var(--r-card);border:1px solid var(--rule);
+       background:var(--card) repeating-linear-gradient(45deg,#f2ede0 0 8px,#f8f4ea 8px 16px);
+       object-fit:cover;display:block}
+.slots{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.slot{width:48px;height:64px;border-radius:12px;background:var(--card);border:2px solid var(--rule);
+      display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:600}
+.slot.filled{border-color:var(--green);border-width:3px}
+.slot.reveal{border-color:var(--blue);border-width:3px;background:var(--blue-tint);color:var(--blue-dark)}
+.tiles{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.tile{min-width:64px;height:64px;padding:0 14px;border-radius:var(--r-btn);background:var(--card);
+      border:2px solid var(--rule);font-size:26px;font-weight:600;transition:transform 120ms var(--ease)}
+.tile:hover{border-color:var(--green)}
+.tile:active{transform:translateY(2px)}
+.tile.used{opacity:.28;pointer-events:none}
+.options{display:flex;flex-direction:column;gap:10px}
+.option{min-height:72px;padding:14px 20px;border-radius:var(--r-btn);background:var(--card);
+        border:2px solid var(--rule);font-size:19px;text-align:left;transition:border-color 120ms var(--ease)}
+.option:hover{border-color:var(--green)}
+.option.chosen{border-color:var(--green);border-width:3px}
+.option.reveal{border-color:var(--blue);border-width:3px;background:var(--blue-tint)}
+.imgopts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.imgopt{border-radius:16px;border:2px solid var(--rule);background:var(--card);overflow:hidden;padding:0;
+        aspect-ratio:1.1;transition:border-color 120ms var(--ease)}
+.imgopt:hover{border-color:var(--green)}
+.imgopt.chosen{border-color:var(--green);border-width:3px}
+.imgopt.reveal{border-color:var(--blue);border-width:3px}
+.imgopt img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* feedback */
+.verdict{display:flex;align-items:center;gap:12px}
+.verdict .mark{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+               color:var(--card);flex:none}
+.verdict .mark svg{width:28px;height:28px}
+.verdict h2{font-family:var(--serif);font-size:30px;font-weight:400;margin:0}
+.yes .mark{background:var(--green)} .yes h2{color:var(--green-dark)}
+.notyet .mark{background:var(--blue)} .notyet h2{color:var(--blue-dark)}
+.feedback{border-radius:var(--r-card);padding:22px}
+.feedback.yes{background:var(--green-tint)} .feedback.notyet{background:var(--blue-tint)}
+.bigword{font-size:40px;font-weight:600;letter-spacing:.02em;margin:8px 0 2px}
+
+/* specimen cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.specimen{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-card);padding:14px;
+          display:flex;flex-direction:column;gap:10px;text-align:left;width:100%}
+.specimen img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;border:1px solid var(--rule)}
+.specimen .word{font-size:22px;font-weight:600}
+.specimen .def{font-size:14px;color:var(--ink-soft);line-height:1.35}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;border-radius:999px;
+     padding:4px 10px;font-family:var(--body)}
+.tag-mastered{color:var(--green);background:var(--green-tint)}
+.tag-learning{color:var(--orange-dark);background:var(--orange-tint)}
+.tag-review{color:var(--blue-dark);background:var(--blue-tint)}
+.dim{font-size:13.5px;color:var(--ink-soft)}
+.dimbar{height:8px;border-radius:4px;background:var(--track);margin-top:4px}
+.dimbar > i{display:block;height:100%;border-radius:4px;background:var(--green)}
+.dimbar.low > i{background:var(--orange)}
+
+/* skill map */
+.skill{margin-bottom:16px}
+.skill .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.skill .nm{font-size:16px;font-weight:600}
+.skill .bd{font-size:13px;font-weight:700}
+.bar{height:12px;border-radius:6px;background:var(--track)}
+.bar > i{display:block;height:100%;border-radius:6px;transition:width 700ms var(--ease)}
+
+/* mascot */
+.wren{display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;padding:20px 0}
+.wren .owl{font-size:96px;animation:sway 6s ease-in-out infinite}
+
+/* bottom nav — three destinations, always */
+.nav{position:fixed;left:0;right:0;bottom:0;background:var(--paper);border-top:1px solid var(--rule);
+     padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;
+     max-width:640px;margin:0 auto}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;
+            border-radius:var(--r-btn);color:var(--ink-faint);font-size:13px;font-weight:600}
+.nav button.on{background:var(--card);color:var(--green);font-weight:700}
+.nav svg{width:26px;height:26px}
+.nav.hidden{display:none}
+
+.stats{display:flex;gap:12px}
+.stat{flex:1;background:var(--card);border:1px solid var(--rule);border-radius:var(--r-btn);padding:13px}
+.stat b{font-family:var(--serif);font-size:22px;font-weight:400;display:block;margin-top:2px}
+.center{text-align:center}
+.muted{color:var(--ink-faint);font-size:14px}
+.err{background:var(--orange-tint);border-radius:var(--r-btn);padding:16px 20px;color:var(--orange-dark)}
+@media(min-width:900px){
+  #app{max-width:900px;padding-bottom:32px;padding-left:120px}
+  .nav{flex-direction:column;left:0;right:auto;top:0;bottom:0;width:104px;border-top:none;
+       border-right:1px solid var(--rule);justify-content:flex-start;padding-top:28px;margin:0}
+}
+</style>
+</head>
+<body>
+<div id="app"><div class="screen"><p class="body">Loading…</p></div></div>
+<nav class="nav hidden" id="nav"></nav>
+
+<script>
+/* ===================================================================
+   The client renders; the engine decides. This app never picks a
+   question, never scores an answer and never computes mastery — it
+   asks the API for the next thing and draws it.
+   =================================================================== */
+const API = (location.protocol === "file:") ? "http://127.0.0.1:8000/api" : "/api";
+const MEDIA = (location.protocol === "file:") ? "http://127.0.0.1:8000" : "";
+
+const ICON = {
+  speaker:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M155 27a8 8 0 00-8.4.9L77 83H32a16 16 0 00-16 16v58a16 16 0 0016 16h45l69.6 55.1A8 8 0 00160 222V34a8 8 0 00-5-7zM32 99h40v58H32zm112 106.4L88 161V95l56-44.4zM208 128a40 40 0 01-11.7 28.3 8 8 0 01-11.3-11.3 24 24 0 000-34 8 8 0 0111.3-11.3A40 40 0 01208 128zm32 0a72 72 0 01-21.1 50.9 8 8 0 11-11.3-11.3 56 56 0 000-79.2 8 8 0 0111.3-11.3A72 72 0 01240 128z"/></svg>',
+  check:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M229.7 69.7l-128 128a8 8 0 01-11.4 0l-56-56a8 8 0 0111.4-11.4L96 180.7 218.3 58.3a8 8 0 0111.4 11.4z"/></svg>',
+  again:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M224 128a96 96 0 01-164 67.9 8 8 0 0111.3-11.3A80 80 0 10128 48a79.5 79.5 0 00-56.6 23.4L37 104h35a8 8 0 010 16H24a8 8 0 01-8-8V64a8 8 0 0116 0v27.4l34.1-32.8A96 96 0 01224 128z"/></svg>',
+  house:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M219.3 90.7l-80-72a16 16 0 00-22.6 0l-80 72A16 16 0 0032 102.6V208a16 16 0 0016 16h48a8 8 0 008-8v-56h48v56a8 8 0 008 8h48a16 16 0 0016-16V102.6a16 16 0 00-4.7-11.9z"/></svg>',
+  book:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M224 48h-64a32 32 0 00-32 32 32 32 0 00-32-32H32a8 8 0 00-8 8v144a8 8 0 008 8h64a24 24 0 0124 24 8 8 0 0016 0 24 24 0 0124-24h64a8 8 0 008-8V56a8 8 0 00-8-8zM96 192H40V64h56a16 16 0 0116 16v112a39.8 39.8 0 00-16-3.4zm120 0h-56a39.8 39.8 0 00-16 3.4V80a16 16 0 0116-16h56z"/></svg>',
+  map:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M228.9 45.2a8 8 0 00-7-1.4L160 60.6 100.5 36a8 8 0 00-5 0l-64 21.3A8 8 0 0026 65v144a8 8 0 0010.5 7.6L96 195.4l59.5 24.6a8 8 0 005 0l64-21.3A8 8 0 00230 191V51.6a8 8 0 00-1.1-6.4zM104 54.9l48 19.8v126.4l-48-19.8zM42 70.8l46-15.3v126.5l-46 15.3zm172 114.4l-46 15.3V74.1l46-15.3z"/></svg>',
+  bulb:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M176 232a8 8 0 01-8 8H88a8 8 0 010-16h80a8 8 0 018 8zm40-128a87.6 87.6 0 01-33.6 69.2A16.8 16.8 0 00176 186v6a16 16 0 01-16 16H96a16 16 0 01-16-16v-6a16.5 16.5 0 00-6.2-12.7A87.6 87.6 0 0140 104.5C39.7 56.8 78.3 17 126 16a88 88 0 0190 88z"/></svg>',
+};
+
+const api = async (path, opts = {}) => {
+  const res = await fetch(API + path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  return res.status === 204 ? null : res.json();
+};
+
+const app = document.getElementById("app");
+const nav = document.getElementById("nav");
+const state = { child: null, session: null, question: null, answered: 0, pips: [], collected: [] };
+
+const el = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
+const render = (html, navOn) => {
+  app.innerHTML = "";
+  app.appendChild(el(`<div class="screen rise">${html}</div>`));
+  drawNav(navOn);
+};
+const media = (url) => (url ? (url.startsWith("http") ? url : MEDIA + url) : "");
+
+function drawNav(active) {
+  if (!active) { nav.classList.add("hidden"); return; }
+  nav.classList.remove("hidden");
+  const items = [["today", "Today", ICON.house], ["notebook", "Notebook", ICON.book], ["map", "My map", ICON.map]];
+  nav.innerHTML = items.map(([k, label, icon]) =>
+    `<button data-go="${k}" class="${k === active ? "on" : ""}">${icon}<span>${label}</span></button>`).join("");
+  nav.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
+}
+
+const go = (where) => ({ today: showToday, notebook: showNotebook, map: showMap }[where] || showToday)();
+
+/* ---------------- audio ---------------- */
+let current = null;
+function say(url) {
+  if (!url) return;
+  try { if (current) current.pause(); } catch (e) {}
+  current = new Audio(media(url));
+  current.play().catch(() => {});
+}
+
+/* ---------------- boot ---------------- */
+async function boot() {
+  try {
+    const kids = await api("/children");
+    if (!kids.length) return showCreateChild();
+    const saved = localStorage.getItem("fg_child");
+    state.child = kids.find(k => k.id === saved) || kids[0];
+    showToday();
+  } catch (e) {
+    render(`<h1 class="display">Can't reach the engine</h1>
+      <div class="err">Start the backend, then reload:<br><code>cd backend &amp;&amp; ./.venv/bin/uvicorn app.main:app --reload</code></div>
+      <p class="muted">${e.message}</p>`, null);
+  }
+}
+
+function showCreateChild() {
+  render(`<span class="label">Field notes</span>
+    <h1 class="display">Who's exploring?</h1>
+    <p class="body">Add a name to start your notebook.</p>
+    <div class="card"><input id="nm" placeholder="Name" style="width:100%;font-family:var(--body);font-size:20px;
+      padding:14px;border:2px solid var(--rule);border-radius:var(--r-btn);background:var(--paper)"></div>
+    <button class="btn btn-primary" id="mk">Begin</button>`, null);
+  document.getElementById("mk").onclick = async () => {
+    const name = document.getElementById("nm").value.trim();
+    if (!name) return;
+    state.child = await api("/children", { method: "POST", body: { name } });
+    localStorage.setItem("fg_child", state.child.id);
+    showToday();
+  };
+}
+
+/* ---------------- 01 Today ---------------- */
+async function showToday() {
+  const p = await api(`/children/${state.child.id}/progress`);
+  const hour = new Date().getHours();
+  const partOfDay = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+  const target = p.next_milestone ? p.next_milestone.target : null;
+  const pct = target ? Math.min(100, Math.round((p.words_known / target) * 100)) : 0;
+
+  render(`
+    <div class="topbar">
+      <div class="avatar">🦉</div>
+      <div class="who"><span class="label">${new Date().toLocaleDateString(undefined,{weekday:"long"})} ${partOfDay}</span>
+        <span class="name">Hello, ${state.child.name}</span></div>
+      <div class="count"><b>${p.words_known.toLocaleString()}</b><span class="label">words</span></div>
+    </div>
+
+    <div class="card">
+      <span class="label" style="color:var(--orange)">Next in your notebook</span>
+      <h1 class="display" style="margin:8px 0 6px">${recommendationTitle(p)}</h1>
+      <p class="body" style="font-size:16px">${recommendationWhy(p)}</p>
+      <div class="track" style="margin:16px 0"><i style="width:${pct}%"></i></div>
+      <button class="btn btn-primary" id="begin">Begin</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span class="label">Specimens</span><b>${p.specimens_total}</b></div>
+      <div class="stat"><span class="label">Streak</span><b>${p.streak_days} day${p.streak_days===1?"":"s"}</b></div>
+    </div>`, "today");
+
+  document.getElementById("begin").onclick = startSession;
+}
+
+const recommendationTitle = (p) => {
+  const weakest = [...p.skills].sort((a, b) => a.fraction - b.fraction)[0];
+  if (!weakest || weakest.band === "just started") return "Let's find some new words";
+  return { spelling: "Some words to spell", vocabulary: "Three new words to collect" }[weakest.skill]
+      || "Three new words to collect";
+};
+const recommendationWhy = (p) => {
+  const sorted = [...p.skills].sort((a, b) => b.fraction - a.fraction);
+  const best = sorted[0], worst = sorted[sorted.length - 1];
+  if (!best || best.fraction - worst.fraction < 0.12) return "A few words to explore today.";
+  return `${best.child_name} is ${best.band}. Let's work on ${worst.child_name.toLowerCase()}.`;
+};
+
+/* ---------------- 02 Session opens ---------------- */
+async function startSession() {
+  state.session = await api(`/children/${state.child.id}/sessions`, { method: "POST", body: { subject: "english" } });
+  state.answered = 0; state.pips = []; state.collected = [];
+  render(`<div class="wren">
+      <div class="owl">🦉</div>
+      <h1 class="display">Let's find some new words</h1>
+      <p class="muted">Wren is reading this out</p>
+    </div>
+    <button class="btn btn-primary" id="ready">I'm ready</button>`, null);
+  document.getElementById("ready").onclick = nextQuestion;
+}
+
+/* ---------------- 03 Question ---------------- */
+async function nextQuestion() {
+  const q = await api(`/sessions/${state.session.id}/next-question`, { method: "POST" });
+  if (!q) return finishSession();
+  state.question = q;
+  drawQuestion(q);
+  if (q.media && q.media.audio) setTimeout(() => say(q.media.audio), 350);
+}
+
+function pipsHtml() {
+  const total = state.session.planned_questions;
+  return `<div class="pips">${Array.from({ length: total }, (_, i) =>
+    `<i class="${state.pips[i] || ""}"></i>`).join("")}</div>`;
+}
+
+function drawQuestion(q) {
+  const isSpelling = q.type === "spelling";
+  const isImage = q.type === "image_choice";
+  const picture = q.media && q.media.image
+    ? `<img class="plate" src="${media(q.media.image)}" alt="">` : "";
+
+  render(`
+    ${pipsHtml()}
+    <div class="center" style="display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:8px">
+      <button class="speaker" id="spk" aria-label="Hear the word">${ICON.speaker}</button>
+      <p class="body" style="font-size:17px">${isSpelling ? "Tap to hear it again" : q.prompt}</p>
+    </div>
+    ${isSpelling ? "" : picture}
+    <div id="work"></div>
+    <div id="pad"></div>
+    <button class="btn btn-quiet" id="hint" style="align-self:center">${ICON.bulb} Give me a hint</button>
+  `, null);
+
+  document.getElementById("spk").onclick = () => say(q.media && q.media.audio);
+  document.getElementById("hint").onclick = showHint;
+
+  if (isSpelling) drawSpelling(q);
+  else if (isImage) drawImageChoice(q);
+  else drawTextChoice(q);
+}
+
+function drawSpelling(q) {
+  const word = q.concept || "";
+  let typed = [];
+  const work = document.getElementById("work");
+  const pad = document.getElementById("pad");
+
+  const paint = () => {
+    work.innerHTML = `<div class="slots">${Array.from({ length: word.length }, (_, i) =>
+      `<div class="slot ${typed[i] ? "filled" : ""}">${typed[i] || ""}</div>`).join("")}</div>`;
+    pad.innerHTML = `<div class="tiles">${(q.letters || []).map((L, i) =>
+      `<button class="tile" data-i="${i}">${L}</button>`).join("")}</div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:14px">
+        <button class="btn btn-secondary" id="undo">Undo</button>
+        <button class="btn btn-primary" id="check" style="width:auto" ${typed.length === word.length ? "" : "disabled"}>Check</button>
+      </div>`;
+    used.forEach(i => { const t = pad.querySelector(`[data-i="${i}"]`); if (t) t.classList.add("used"); });
+    pad.querySelectorAll(".tile").forEach(t => t.onclick = () => {
+      if (typed.length >= word.length) return;
+      typed.push(t.textContent); used.push(+t.dataset.i); paint();
+    });
+    document.getElementById("undo").onclick = () => { typed.pop(); used.pop(); paint(); };
+    document.getElementById("check").onclick = () => submit(typed.join(""));
+  };
+  const used = [];
+  paint();
+}
+
+function drawTextChoice(q) {
+  document.getElementById("work").innerHTML =
+    `<div class="options">${q.options.map(o =>
+      `<button class="option" data-v="${encodeURIComponent(o.value)}">${o.label || o.value}</button>`).join("")}</div>`;
+  bindChoices();
+}
+
+function drawImageChoice(q) {
+  document.getElementById("work").innerHTML =
+    `<div class="imgopts">${q.options.map(o =>
+      `<button class="imgopt" data-v="${encodeURIComponent(o.value)}">
+         <img src="${media((o.media || {}).image)}" alt=""></button>`).join("")}</div>`;
+  bindChoices();
+}
+
+function bindChoices() {
+  document.querySelectorAll("[data-v]").forEach(b => b.onclick = () => {
+    document.querySelectorAll("[data-v]").forEach(x => x.classList.remove("chosen"));
+    b.classList.add("chosen");
+    submit(decodeURIComponent(b.dataset.v));
+  });
+}
+
+async function showHint() {
+  const q = state.question;
+  const h = await api(`/sessions/${state.session.id}/hint?attempt_id=${q.attempt_id}&level=1`, { method: "POST" });
+  state.hintUsed = true;
+  const box = el(`<div class="feedback" style="background:var(--orange-tint)">
+      <div class="verdict"><div class="mark" style="background:var(--orange)">${ICON.bulb}</div>
+      <h2 style="color:var(--orange-dark)">A hint</h2></div>
+      <p class="body" style="margin-top:10px;color:var(--orange-dark)">${h.text}</p></div>`);
+  document.getElementById("work").before(box);
+}
+
+/* ---------------- 04/05 Feedback ---------------- */
+async function submit(answer) {
+  const q = state.question;
+  const started = state.startedAt || Date.now();
+  const res = await api(`/sessions/${state.session.id}/answer`, {
+    method: "POST",
+    body: {
+      attempt_id: q.attempt_id, answer,
+      response_time_ms: Date.now() - started,
+      hint_used: !!state.hintUsed, hint_level: state.hintUsed ? 1 : 0,
+    },
+  });
+  state.hintUsed = false;
+  state.pips[state.answered] = res.is_correct ? "done" : "miss";
+  state.answered++;
+  (res.rewards || []).forEach(r => { if (r.kind === "concept_mastered") state.collected.push(r.payload); });
+
+  res.is_correct ? showCorrect(q, res) : showNotYet(q, res);
+}
+
+function showCorrect(q, res) {
+  render(`${pipsHtml()}
+    <div class="feedback yes rise" style="margin-top:10px">
+      <div class="verdict yes"><div class="mark pop">${ICON.check}</div><h2>Yes!</h2></div>
+      <div class="bigword">${q.concept || ""}</div>
+      ${res.concept_mastered ? `<p class="body" style="color:var(--green-dark)">Added to your notebook.</p>` : ""}
+    </div>
+    <button class="btn btn-primary" id="next">Next</button>`, null);
+  say(q.media && q.media.audio);
+  document.getElementById("next").onclick = () => (res.continue_session ? nextQuestion() : finishSession());
+}
+
+function showNotYet(q, res) {
+  const word = res.expected || q.concept || "";
+  render(`${pipsHtml()}
+    <div class="feedback notyet nudge" style="margin-top:10px">
+      <div class="verdict notyet"><div class="mark">${ICON.again}</div><h2>Not yet</h2></div>
+      <div class="slots" style="margin:14px 0">${[...word].map(c =>
+        `<div class="slot reveal">${c}</div>`).join("")}</div>
+      <p class="body" style="color:var(--blue-dark)">${res.explanation || "We'll come back to this one soon."}</p>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-secondary" id="again" style="flex:1">Say it with me</button>
+      <button class="btn btn-primary" id="next" style="flex:1">Keep going</button>
+    </div>`, null);
+  say(q.media && q.media.audio);
+  document.getElementById("again").onclick = () => say(q.media && q.media.audio);
+  document.getElementById("next").onclick = () => (res.continue_session ? nextQuestion() : finishSession());
+}
+
+/* ---------------- 06 Reward ---------------- */
+async function finishSession() {
+  const s = await api(`/sessions/${state.session.id}/complete`, { method: "POST" });
+  const specimens = s.new_specimens || [];
+  const target = s.next_milestone ? s.next_milestone.target : null;
+  const pct = target ? Math.min(100, Math.round(((s.vocabulary_estimate || 0) / target) * 100)) : 0;
+
+  render(`
+    <span class="label">Added to your notebook</span>
+    <h1 class="display">${specimens.length ? `${numberWord(specimens.length)} new specimen${specimens.length===1?"":"s"}` : "Good exploring"}</h1>
+    ${specimens.length ? `<div class="grid">${specimens.map(sp =>
+      `<div class="specimen rise"><img src="${media(sp.image)}" alt=""><div class="word">${sp.concept}</div></div>`).join("")}</div>` : ""}
+    ${(s.milestones || []).map(m => `<div class="feedback yes"><div class="verdict yes">
+        <div class="mark pop">${ICON.check}</div><h2>${m.name}</h2></div></div>`).join("")}
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--ink-soft);margin-bottom:6px">
+        <span>${s.next_milestone ? s.next_milestone.band : "Words"}</span>
+        <b style="color:var(--ink)">${(s.vocabulary_estimate||0).toLocaleString()}${target ? " / " + target.toLocaleString() : ""}</b>
+      </div>
+      <div class="track"><i style="width:${pct}%"></i></div>
+      ${s.improvement ? `<p class="body" style="font-size:15px;margin-top:12px">${s.improvement}</p>` : ""}
+    </div>
+    <button class="btn btn-primary" id="nb">See my notebook</button>
+    <button class="btn btn-quiet" id="done">All done for today</button>`, null);
+
+  document.getElementById("nb").onclick = showNotebook;
+  document.getElementById("done").onclick = showToday;
+}
+const numberWord = (n) => ["No","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten"][n] || String(n);
+
+/* ---------------- Notebook ---------------- */
+async function showNotebook() {
+  const items = await api(`/children/${state.child.id}/notebook`);
+  const tagFor = (s) => ({
+    mastered: `<span class="tag tag-mastered">${ICON.check} Mastered</span>`,
+    learning: `<span class="tag tag-learning">Learning</span>`,
+    needs_review: `<span class="tag tag-review">Review soon</span>`,
+  }[s] || "");
+
+  render(`<span class="label">Your collection</span>
+    <h1 class="title">Your notebook</h1>
+    ${items.length ? `<div class="grid">${items.map((it, i) => `
+      <button class="specimen rise" data-i="${i}" style="animation-delay:${Math.min(i,8)*60}ms">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="label">No. ${String(i+1).padStart(3,"0")}</span>${tagFor(it.status)}
+        </div>
+        <img src="${media(it.image)}" alt="">
+        <div><div class="word">${it.concept}</div><div class="def">${it.definition || ""}</div></div>
+      </button>`).join("")}</div>`
+    : `<div class="card"><p class="body">No specimens yet. Tap <b>Today</b> to collect your first.</p></div>`}`,
+    "notebook");
+
+  document.querySelectorAll("[data-i]").forEach(b =>
+    b.onclick = () => showSpecimenBack(items[+b.dataset.i], +b.dataset.i));
+}
+
+/* The child reads these as sentences about themselves, not percentages
+   about a database (design §07). */
+const DIM_LABEL = {
+  recognition: "I know it when I see it",
+  meaning: "I know what it means",
+  context: "I can use it in a sentence",
+  spelling: "I can spell it",
+};
+const DIM_NOUN = {
+  recognition: "Spotting it",
+  meaning: "The meaning",
+  context: "Using it in a sentence",
+  spelling: "Spelling",
+};
+
+function showSpecimenBack(item, index) {
+  const dims = Object.entries(item.dimensions || {});
+  const weakest = dims.slice().sort((a, b) => a[1] - b[1])[0];
+  render(`
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="label">No. ${String(index+1).padStart(3,"0")} — back</span>
+      <button class="btn btn-quiet" id="back" style="min-height:44px;padding:0 14px">Close</button>
+    </div>
+    <div class="card">
+      <div class="word" style="font-size:26px;font-weight:600">${item.concept}</div>
+      <p class="def" style="margin:4px 0 16px">${item.definition || ""}</p>
+      ${dims.map(([k, v]) => `
+        <div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between" class="dim">
+            <span>${DIM_LABEL[k] || k}</span><b style="color:var(--ink)">${Math.round(v*100)}%</b>
+          </div>
+          <div class="dimbar ${v < 0.65 ? "low" : ""}"><i style="width:${Math.max(3,Math.round(v*100))}%"></i></div>
+        </div>`).join("")}
+      ${weakest ? `<div class="feedback" style="background:var(--orange-tint);padding:12px 14px;font-size:14px;
+        color:var(--orange-dark)">${DIM_NOUN[weakest[0]] || "This"} is your next step for this word.</div>` : ""}
+    </div>`, "notebook");
+  document.getElementById("back").onclick = showNotebook;
+}
+
+/* ---------------- My map ---------------- */
+async function showMap() {
+  const p = await api(`/children/${state.child.id}/progress`);
+  const colour = (band) => band === "really good" || band === "good" ? "var(--green)"
+    : band === "getting there" ? "var(--orange)" : "var(--blue)";
+
+  render(`<span class="label">What you can do</span>
+    <h1 class="title">My map</h1>
+    <div class="card">
+      ${p.skills.map(s => `
+        <div class="skill">
+          <div class="row"><span class="nm">${s.child_name}</span>
+            <span class="bd" style="color:${colour(s.band)}">${s.band}</span></div>
+          <div class="bar"><i style="width:${Math.round(s.fraction*100)}%;background:${colour(s.band)}"></i></div>
+        </div>`).join("")}
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="label">Words</span><b>${p.words_known.toLocaleString()}</b></div>
+      <div class="stat"><span class="label">Streak</span><b>${p.streak_days}</b></div>
+    </div>
+    <p class="muted center">Your map grows every time you explore.</p>`, "map");
+}
+
+boot();
+</script>
+</body>
+</html>
