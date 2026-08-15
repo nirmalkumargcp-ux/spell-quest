@@ -11,10 +11,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, JSONType, TimestampMixin, UUIDMixin
+from app.models.base import Base, JSONType, TimestampMixin, UUIDMixin, enum_col
 
 
-class QuestionType(str, enum.Enum):
+class QuestionType(enum.StrEnum):
     """Extensible — evaluators are registered by type, never switched on inline."""
 
     multiple_choice = "multiple_choice"
@@ -28,7 +28,7 @@ class QuestionType(str, enum.Enum):
     numeric_input = "numeric_input"
 
 
-class ContentStatus(str, enum.Enum):
+class ContentStatus(enum.StrEnum):
     draft = "draft"
     review = "review"
     approved = "approved"
@@ -140,7 +140,7 @@ class Question(UUIDMixin, TimestampMixin, Base):
     concept_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("concepts.id", ondelete="CASCADE"), index=True
     )
-    question_type: Mapped[QuestionType] = mapped_column(String(32), index=True, nullable=False)
+    question_type: Mapped[QuestionType] = mapped_column(enum_col(QuestionType), index=True, nullable=False)
 
     # Author's estimate; `observed_difficulty` is recalibrated from attempts (spec §36).
     difficulty: Mapped[float] = mapped_column(Float, default=0.5, nullable=False, index=True)
@@ -158,7 +158,7 @@ class Question(UUIDMixin, TimestampMixin, Base):
     media: Mapped[dict] = mapped_column(JSONType, default=dict)
     meta: Mapped[dict] = mapped_column(JSONType, default=dict)
 
-    status: Mapped[ContentStatus] = mapped_column(String(16), default=ContentStatus.published, nullable=False)
+    status: Mapped[ContentStatus] = mapped_column(enum_col(ContentStatus, 16), default=ContentStatus.published, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
 
     skill: Mapped[Skill | None] = relationship(back_populates="questions")

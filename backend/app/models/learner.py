@@ -14,10 +14,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, JSONType, TimestampMixin, UUIDMixin
+from app.models.base import Base, JSONType, TimestampMixin, UUIDMixin, enum_col
 
 
-class MasteryStatus(str, enum.Enum):
+class MasteryStatus(enum.StrEnum):
     unknown = "unknown"
     introduced = "introduced"
     learning = "learning"
@@ -26,7 +26,7 @@ class MasteryStatus(str, enum.Enum):
     needs_review = "needs_review"
 
 
-class Dimension(str, enum.Enum):
+class Dimension(enum.StrEnum):
     """The four ways a vocabulary concept can be known (design §07)."""
 
     recognition = "recognition"
@@ -46,11 +46,11 @@ class LearnerConceptState(UUIDMixin, TimestampMixin, Base):
     concept_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("concepts.id", ondelete="CASCADE"), index=True, nullable=False
     )
-    dimension: Mapped[Dimension] = mapped_column(String(20), default=Dimension.recognition, nullable=False)
+    dimension: Mapped[Dimension] = mapped_column(enum_col(Dimension, 20), default=Dimension.recognition, nullable=False)
 
     mastery_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    status: Mapped[MasteryStatus] = mapped_column(String(20), default=MasteryStatus.unknown, nullable=False, index=True)
+    status: Mapped[MasteryStatus] = mapped_column(enum_col(MasteryStatus, 20), default=MasteryStatus.unknown, nullable=False, index=True)
 
     attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     correct_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

@@ -12,10 +12,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, JSONType, TimestampMixin, UUIDMixin
+from app.models.base import Base, JSONType, TimestampMixin, UUIDMixin, enum_col
 
 
-class MilestoneKind(str, enum.Enum):
+class MilestoneKind(enum.StrEnum):
     concepts_mastered = "concepts_mastered"
     vocabulary_estimate = "vocabulary_estimate"
     skill_mastered = "skill_mastered"
@@ -31,7 +31,7 @@ class Milestone(UUIDMixin, TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(String(60), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    kind: Mapped[MilestoneKind] = mapped_column(String(30), nullable=False)
+    kind: Mapped[MilestoneKind] = mapped_column(enum_col(MilestoneKind, 30), nullable=False)
     threshold: Mapped[float] = mapped_column(Float, nullable=False)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     icon: Mapped[str | None] = mapped_column(String(40))

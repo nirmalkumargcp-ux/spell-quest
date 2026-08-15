@@ -8,11 +8,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, JSONType, TimestampMixin, UUIDMixin
+from app.models.base import Base, JSONType, TimestampMixin, UUIDMixin, enum_col
 from app.models.learner import Dimension
 
 
-class SessionType(str, enum.Enum):
+class SessionType(enum.StrEnum):
     diagnostic = "diagnostic"
     practice = "practice"
     review = "review"
@@ -20,7 +20,7 @@ class SessionType(str, enum.Enum):
     mixed = "mixed"
 
 
-class SessionStatus(str, enum.Enum):
+class SessionStatus(enum.StrEnum):
     active = "active"
     completed = "completed"
     abandoned = "abandoned"
@@ -39,8 +39,8 @@ class LearningSession(UUIDMixin, TimestampMixin, Base):
         Uuid(as_uuid=True), ForeignKey("skills.id", ondelete="SET NULL")
     )
 
-    session_type: Mapped[SessionType] = mapped_column(String(20), default=SessionType.practice, nullable=False)
-    status: Mapped[SessionStatus] = mapped_column(String(20), default=SessionStatus.active, nullable=False, index=True)
+    session_type: Mapped[SessionType] = mapped_column(enum_col(SessionType, 20), default=SessionType.practice, nullable=False)
+    status: Mapped[SessionStatus] = mapped_column(enum_col(SessionStatus, 20), default=SessionStatus.active, nullable=False, index=True)
 
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -77,7 +77,7 @@ class QuestionAttempt(UUIDMixin, TimestampMixin, Base):
     skill_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("skills.id", ondelete="SET NULL"), index=True
     )
-    dimension: Mapped[Dimension | None] = mapped_column(String(20))
+    dimension: Mapped[Dimension | None] = mapped_column(enum_col(Dimension, 20))
 
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
