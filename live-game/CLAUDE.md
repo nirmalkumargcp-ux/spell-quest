@@ -1,0 +1,69 @@
+# live-game — session briefing
+
+This folder **is** the published website:
+https://nirmalkumargcp-ux.github.io/spell-quest/
+
+It is played daily by a six-year-old (JAMMU). Treat every change as going
+straight to a child — because it does, about two minutes after a push.
+
+## What's here
+
+```
+index.html     the whole game: markup, styles and logic in one file
+images/        97 photos, one per word
+audio/         128 clips — every word, every letter name, a few phrases
+README.md      the full handover: how it works, how to change it, troubleshooting
+```
+
+No build step and no dependencies. Open `index.html` and it runs.
+
+## Two things that live outside this folder
+
+1. **`../.github/workflows/deploy-live-game.yml`** publishes this folder as the
+   site root. If it is deleted or its `path:` stops matching, the site stops
+   updating. GitHub Pages must stay on **build_type: workflow** — switching it
+   back to "deploy from a branch" publishes the empty repo root and 404s the
+   game. That has happened once.
+2. **The git repository** is the parent folder, `Kids game`. Commit and push
+   from anywhere inside it.
+
+Everything else in the parent folder — `adaptive-platform/`, `tools/` — is
+unrelated to this site and safe to ignore while working here.
+
+## Rules this game follows
+
+Deliberate product decisions, not accidents:
+
+- **Nothing is "wrong."** A miss shows the correct spelling and reads it out
+  letter by letter. No red, no failure sound.
+- **A level only opens at 10/10.** A partial score brings the missed words back
+  alongside new ones.
+- **No spoken praise.** A chime and a short on-screen word. The voice teaches
+  words; it does not congratulate.
+- **Offline-first.** Never introduce a CDN or network dependency for gameplay.
+  The child must be able to play with no internet.
+
+## Progress and the database
+
+Saves locally after every answer, then to Supabase (project
+`yoaireqzfiammcjuzyct`, table `profiles`) — automatically, with retries. One
+row per player plus a `__players__` roster row.
+
+**Never bulk-delete rows.** Real progress lives there: JAMMU (41 words) and
+Nirmal - test (25 words). For testing, use ids prefixed `__test_` and remove
+only those.
+
+**Clear `localStorage` before loading the live site in a test browser.** Stale
+data triggers the old-format migration, which invents a "Player 1" profile and
+syncs it into the family's roster. That has happened twice.
+
+## Verifying a change
+
+Open the file locally to check behaviour, then after pushing confirm the real
+site actually serves it — a green workflow is not proof:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://nirmalkumargcp-ux.github.io/spell-quest/
+```
+
+Hard-refresh with ⌘⇧R; browsers cache the old copy.
