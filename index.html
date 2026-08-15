@@ -336,13 +336,6 @@ function importProgress(file){
    the app always works on-device and syncs when it can reach the cloud.
    ===================================================================== */
 const CLOUD_KEY="spellquest_cloud";
-const SETUP_SQL=`create table if not exists profiles (
-  id text primary key,
-  data jsonb,
-  updated_at timestamptz default now()
-);
-alter table profiles enable row level security;
-create policy "spellquest_anon" on profiles for all to anon using (true) with check (true);`;
 /* Pre-configured to your own Supabase project, so every device auto-syncs with no setup.
    Each player syncs under their own row (the player's id). Editable in the Cloud Sync screen. */
 const CLOUD_DEFAULT={
@@ -357,9 +350,8 @@ function loadCloud(){
   try{ const s=JSON.parse(localStorage.getItem(CLOUD_KEY))||{};
     if(s.url && String(s.url).trim()) c.url=String(s.url).trim();
     if(s.key && String(s.key).trim()) c.key=String(s.key).trim();
-    if(s.off) c.url=c.key="";                      // only an explicit "Turn off" disables it
   }catch(e){}
-  return c;
+  return c;                                        // always ends up configured — sync can't get stuck off
 }
 function saveCloud(){ try{ localStorage.setItem(CLOUD_KEY,JSON.stringify(cloud)); }catch(e){} }
 function cloudReady(){ return !!(cloud.url && cloud.key); }
@@ -786,62 +778,20 @@ function showCloud(){
           <p class="cloudStat" style="font-size:17px;font-weight:800;margin:2px 0 10px">${cloudStatusText()}</p>
         </div>
         <p style="font-size:16px;margin:0 0 10px">
-          ${cloudReady()
-            ? "You don't need to do anything here — progress saves by itself after every word, and again when you close the app. Open this page on any device and each player picks up where they left off."
-            : "Turn it back on below to sync progress across devices."}
+          Progress saves by itself after every word, and again when you close the app.
+          Open this page on any device and each player picks up where they left off.
         </p>
         <div style="background:var(--soft);border-radius:14px;padding:10px 14px;margin:4px 0 6px;font-size:15px">
           👥 Players syncing on this device:<br>
           ${roster.players.length?roster.players.map(p=>`<b>${p.emoji} ${p.name}</b>`).join(" &nbsp;·&nbsp; "):"<i>No players yet</i>"}
         </div>
-        <div class="controls" style="justify-content:flex-start;margin-top:14px">
+        <div class="controls" style="justify-content:center;margin-top:14px">
           <button class="btn blue" id="syncNow">🔄 Sync Now</button>
-          <button class="btn ghost" id="advToggle" style="font-size:16px">⚙️ Advanced</button>
-        </div>
-        <div id="adv" style="display:none;margin-top:16px;border-top:2px dashed #ddd6fe;padding-top:14px">
-          <p style="font-size:15px;margin:0 0 8px">Already set up for you. Only change this to use a <b>different</b> Supabase project:</p>
-          <ol style="font-size:14px;line-height:1.6;padding-left:20px;margin:0 0 10px">
-            <li>Open <b>supabase.com</b>, sign up free, click <b>New project</b>.</li>
-            <li>Open <b>SQL Editor</b> → paste the code below → <b>Run</b>.</li>
-            <li>Open <b>Project Settings → API</b>, copy <b>Project URL</b> and the <b>anon public</b> key here.</li>
-          </ol>
-          <textarea id="sqlBox" class="cin" readonly rows="4" style="font-family:monospace;font-size:12px;resize:vertical">${SETUP_SQL}</textarea>
-          <button class="btn yellow" id="copySql" style="font-size:15px;margin:0 0 14px">📋 Copy setup code</button>
-          <label class="clab">Project URL</label>
-          <input id="cUrl" class="cin" placeholder="https://xxxx.supabase.co" value="${cloud.url||""}">
-          <label class="clab">Anon public key</label>
-          <input id="cKey" class="cin" placeholder="eyJhbGciOi..." value="${cloud.key||""}">
-          <div class="controls" style="justify-content:flex-start;margin-top:8px">
-            <button class="btn play" id="connect">✅ Save &amp; Sync</button>
-            ${cloudReady()?'<button class="btn del" id="cloudOff">Turn off</button>':''}
-          </div>
-          <p class="muted-note" style="color:#8a7bbf;margin-top:10px">Saved data is just a list of spelling words &amp; levels — not sensitive — but keep your key to yourself.</p>
         </div>
       </div>
     </div>`;
   document.getElementById("back").onclick=()=>{ sfxClick(); showHome(); };
-  document.getElementById("advToggle").onclick=()=>{ sfxClick();
-    const a=document.getElementById("adv"); a.style.display = a.style.display==="none"?"block":"none"; };
-  document.getElementById("copySql").onclick=()=>{ const t=document.getElementById("sqlBox"); t.focus(); t.select();
-    (navigator.clipboard?navigator.clipboard.writeText(SETUP_SQL):Promise.reject())
-      .then(()=>toast("Copied! 📋")).catch(()=>{ try{document.execCommand("copy"); toast("Copied! 📋");}catch(e){ toast("Select the code to copy",false);} }); };
-  const off=document.getElementById("cloudOff"); if(off) off.onclick=()=>{ sfxClick();
-    cloud={url:"",key:""}; try{ localStorage.setItem(CLOUD_KEY,JSON.stringify({off:true})); }catch(e){}
-    cloudStatus="off"; showCloud(); };
-  document.getElementById("connect").onclick=async()=>{
-    /* validate what was TYPED before touching the live config, so a mis-tap
-       on an empty form can never disconnect a working setup */
-    const u=document.getElementById("cUrl").value.trim();
-    const k=document.getElementById("cKey").value.trim();
-    if(!u || !k){ sfxWrong(); toast("Fill in both boxes",false); return; }
-    cloud.url=u; cloud.key=k;
-    saveCloud(); sfxClick();
-    const r=await cloudSyncNow();
-    if(r.ok){ sfxCorrect(); confetti(20); toast("Connected! ☁️ +"+(r.added||0)+" words"); }
-    else { sfxWrong(); toast("Saved, but couldn't reach the cloud",false); }
-    showCloud();
-  };
-  document.getElementById("syncNow").onclick=async()=>{ if(!cloudReady()){ toast("Set it up first",false); return; }
+  document.getElementById("syncNow").onclick=async()=>{ if(!cloudReady()){ toast("Sync is off",false); return; }
     sfxClick(); const r=await cloudSyncNow();
     if(r.ok){ sfxCorrect(); toast("Synced! ☁️ +"+(r.added||0)+" words"); } else { sfxWrong(); toast("Couldn't reach the cloud",false); }
     showCloud(); };
