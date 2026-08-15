@@ -481,9 +481,6 @@ function spellOutWord(w,onDone){
   list.push({file:`audio/${w}.m4a`,text:w});
   playQueue(list,onDone);
 }
-const PRAISE=[["greatjob","Great job!"],["welldone","Well done!"],["awesome","Awesome!"],["youdidit","You did it!"],["superstar","Superstar!"]];
-function playPraise(onDone){ const p=PRAISE[Math.floor(Math.random()*PRAISE.length)];
-  playQueue([{file:`audio/phrase_${p[0]}.m4a`, text:p[1]}], onDone); return p[1]; }
 function playPhrase(slug,text,onDone){ playQueue([{file:`audio/phrase_${slug}.m4a`, text:text}], onDone); }
 
 /* browser-voice fallback, tuned to sound natural (not chirpy) */
@@ -910,9 +907,10 @@ function onCorrect(){
   toast(rand(["Yes!","Great!","Woohoo!","⭐","Nice!"]));
   flyToPanel("left", emoji, word);
   round.i++;
+  /* no spoken praise — the chime, confetti and toast are the reward.
+     Keeps the pace quick and the synthetic voice for teaching words only. */
   const go=once(()=>flushBadges(()=>{ round.i<round.words.length?renderWord():roundEnd(); }));
-  playPraise(()=>setTimeout(go,450));       // wait for the praise to finish speaking
-  setTimeout(go, 6000);                      // safety net if audio can't play
+  setTimeout(go, 900);
 }
 
 function onWrong(timeUp){
