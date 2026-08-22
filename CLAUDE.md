@@ -10,10 +10,12 @@ straight to a child — because it does, about two minutes after a push.
 
 ```
 index.html     the whole game: markup, styles and logic in one file
-images/        97 photos, one per word
-audio/         128 clips — every word, every letter name, a few phrases
+images/        502 photos, one per word
+audio/         535 clips — every word, every letter name, a few phrases
 README.md      the full handover: how it works, how to change it, troubleshooting
 ```
+
+500 words across 30 themed levels.
 
 No build step and no dependencies. Open `index.html` and it runs.
 
@@ -40,6 +42,9 @@ Deliberate product decisions, not accidents:
   alongside new ones.
 - **No spoken praise.** A chime and a short on-screen word. The voice teaches
   words; it does not congratulate.
+- **A bad picture is reportable, not fatal.** The 🚩 by the speaker files the
+  word under `save.reports` and syncs it; it never skips the word or changes the
+  score. Reports are listed under ☁️ Cloud Sync.
 - **Offline-first.** Never introduce a CDN or network dependency for gameplay.
   The child must be able to play with no internet.
 

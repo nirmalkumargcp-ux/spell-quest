@@ -15,8 +15,8 @@ next level.
 
 | | |
 |---|---|
-| Levels | 6 — Little Words, Fun Things, Yummy Food, Animals, All Around, Big Words |
-| Words | 93, each with a photo and a spoken clip |
+| Levels | 30, themed — Little Words and Fun Things through Dinosaur Dig and Really Big Words |
+| Words | 500, each with a photo and a spoken clip |
 | Players | Separate profiles, each with their own progress |
 | Saving | Automatic, on this device and in the cloud |
 | Internet | Only needed to sync — the game itself plays offline |
@@ -36,8 +36,8 @@ next level.
 
 ```
 index.html     the entire game — markup, styles, logic, all in one file
-images/        97 photos, one per word (from Wikipedia)
-audio/         128 clips — every word, every letter name, a few phrases
+images/        502 photos, one per word (from Wikipedia)
+audio/         535 clips — every word, every letter name, a few phrases
 ```
 
 `index.html` has no dependencies. Open it by double-clicking and it runs.
@@ -61,15 +61,31 @@ Hard-refresh with **⌘⇧R** to see changes — browsers cache the old copy.
 
 **Add a word** — find `TIERS` near the top of the `<script>` and add
 `{w:"apple",e:"🍎"}` to a level. It needs `images/apple.jpg` and
-`audio/apple.m4a` to exist; see `../tools/README.md` for generating those.
+`audio/apple.m4a` to exist; the asset pipeline that generates those lives in
+the adaptive-platform repo, under `tools/`.
+
+**Add a level** — put it at the **end** of `TIERS`, and give it a
+`.level.lNN .face` gradient in the CSS. Never insert or reorder a level:
+`save.tier` is an index into `TIERS` and `save.practice` is keyed by that same
+index, so renumbering an existing level silently moves every player onto the
+wrong one and misfiles their practice words.
 
 **Change the timer** — `timeForWord()`, currently `15 + letters × 3` seconds.
 
 **Change round length** — `ROUND_SIZE`, currently 10.
 
 **A word with a confusing photo** — add it to `EMOJI_WORDS` and the game shows
-a clear icon instead. `sun`, `star`, `cloud` and `corn` are already there,
-because their encyclopedia photos mislead a child.
+the emoji instead. `sun`, `star` and `mouth` are already there: Wikipedia's lead
+image is a grey telescope disc for the first two, and a lion's open jaws for the
+third. There is no `images/mouth.jpg`; the emoji is the picture.
+
+**Reporting a bad picture while playing** — a small grey 🚩 sits beside the 🔊
+button on the play screen. Tapping it files the word under `save.reports` and
+turns the flag red. It deliberately does **not** skip the word or change the
+score — the word is still spoken aloud, so the round stays playable, and a child
+tapping it changes nothing. Reports sync like progress does, so one made on the
+child's tablet reaches your device. Read and clear them under **☁️ Cloud Sync**,
+which only shows the panel when there is something to show.
 
 ---
 

@@ -77,7 +77,35 @@
   .level.l4 .face{background:linear-gradient(180deg,#c084fc,#7c3aed);}
   .level.l5 .face{background:linear-gradient(180deg,#fbbf24,#d97706);}
   .level.l6 .face{background:linear-gradient(180deg,#fb7185,#e11d48);}
+  .level.l7 .face{background:linear-gradient(180deg,#2dd4bf,#0d9488);}
+  .level.l8 .face{background:linear-gradient(180deg,#818cf8,#4338ca);}
+  .level.l9 .face{background:linear-gradient(180deg,#fb923c,#c2410c);}
+  .level.l10 .face{background:linear-gradient(180deg,#e879f9,#a21caf);}
+  .level.l11 .face{background:linear-gradient(180deg,#22d3ee,#0e7490);}
+  .level.l12 .face{background:linear-gradient(180deg,#60a5fa,#1d4ed8);}
+  .level.l13 .face{background:linear-gradient(180deg,hsl(10,75%,64%),hsl(10,70%,38%));}
+  .level.l14 .face{background:linear-gradient(180deg,hsl(30,75%,64%),hsl(30,70%,38%));}
+  .level.l15 .face{background:linear-gradient(180deg,hsl(50,75%,64%),hsl(50,70%,38%));}
+  .level.l16 .face{background:linear-gradient(180deg,hsl(70,75%,64%),hsl(70,70%,38%));}
+  .level.l17 .face{background:linear-gradient(180deg,hsl(90,75%,64%),hsl(90,70%,38%));}
+  .level.l18 .face{background:linear-gradient(180deg,hsl(110,75%,64%),hsl(110,70%,38%));}
+  .level.l19 .face{background:linear-gradient(180deg,hsl(130,75%,64%),hsl(130,70%,38%));}
+  .level.l20 .face{background:linear-gradient(180deg,hsl(150,75%,64%),hsl(150,70%,38%));}
+  .level.l21 .face{background:linear-gradient(180deg,hsl(170,75%,64%),hsl(170,70%,38%));}
+  .level.l22 .face{background:linear-gradient(180deg,hsl(190,75%,64%),hsl(190,70%,38%));}
+  .level.l23 .face{background:linear-gradient(180deg,hsl(210,75%,64%),hsl(210,70%,38%));}
+  .level.l24 .face{background:linear-gradient(180deg,hsl(230,75%,64%),hsl(230,70%,38%));}
+  .level.l25 .face{background:linear-gradient(180deg,hsl(250,75%,64%),hsl(250,70%,38%));}
+  .level.l26 .face{background:linear-gradient(180deg,hsl(270,75%,64%),hsl(270,70%,38%));}
+  .level.l27 .face{background:linear-gradient(180deg,hsl(290,75%,64%),hsl(290,70%,38%));}
+  .level.l28 .face{background:linear-gradient(180deg,hsl(310,75%,64%),hsl(310,70%,38%));}
+  .level.l29 .face{background:linear-gradient(180deg,hsl(330,75%,64%),hsl(330,70%,38%));}
+  .level.l30 .face{background:linear-gradient(180deg,hsl(350,75%,64%),hsl(350,70%,38%));}
   .level.locked .face{filter:grayscale(.7) brightness(.85);}
+  /* with a dozen-plus levels the picker has to scroll; keep it inside the
+     screen so the buttons above it never get pushed off the top */
+  .levels{max-height:min(58vh,520px); overflow-y:auto; padding:6px 4px 10px;}
+  .level.current .face{outline:5px solid #fff; outline-offset:3px;}
   .level .emoji{font-size:48px; line-height:1;}
   .level h3{margin:6px 0 2px; font-size:23px;}
   .level p{margin:0; font-size:15px; opacity:.95;}
@@ -98,6 +126,14 @@
   .picfallback{display:none; height:clamp(120px,22vh,205px); width:clamp(120px,22vh,205px); border-radius:20px; align-items:center; justify-content:center;
     font-size:clamp(84px,16vh,150px); background:var(--soft); box-shadow:0 8px 20px rgba(59,42,99,.28); border:5px solid #fff;}
   .speaker{font-size:clamp(26px,5vh,44px); background:none; border:none; cursor:pointer; transition:transform .12s; line-height:1;}
+  .picrow{display:flex; align-items:center; justify-content:center; gap:14px;}
+  /* Report button: deliberately small and grey. A grown-up watching taps it
+     when a photo does not match the word; it never changes the score. */
+  .flagbtn{font-size:clamp(15px,2.4vh,20px); background:none; border:none; cursor:pointer;
+    opacity:.32; filter:grayscale(1); transition:opacity .15s, filter .15s, transform .12s; line-height:1; padding:6px;}
+  .flagbtn:hover{opacity:.9; filter:grayscale(0);}
+  .flagbtn:active{transform:scale(.88);}
+  .flagbtn.done{opacity:1; filter:grayscale(0);}
   .speaker:active{transform:scale(.9);}
 
   .slots{display:flex; gap:7px; justify-content:center; flex-wrap:wrap; margin:2px 0 10px; min-height:48px;}
@@ -207,9 +243,133 @@ const TIERS = [
    {w:"elephant",e:"🐘"},{w:"dolphin",e:"🐬"},{w:"dinosaur",e:"🦕"},{w:"butterfly",e:"🦋"},{w:"crocodile",e:"🐊"},
    {w:"hamburger",e:"🍔"},{w:"strawberry",e:"🍓"},{w:"sunflower",e:"🌻"},{w:"octopus",e:"🐙"},{w:"kangaroo",e:"🦘"},
    {w:"pineapple",e:"🍍"},{w:"telephone",e:"☎️"},{w:"helicopter",e:"🚁"},{w:"watermelon",e:"🍉"},{w:"chocolate",e:"🍫"} ]},
+ /* Levels 7+ are APPENDED, never inserted or reordered: save.tier is an index
+    and save.practice is keyed by index, so renumbering an existing level would
+    misfile every player's saved progress. Add new levels at the end only. */
+ { id:"l7", title:"Level 7", subtitle:"On the Farm", emoji:"🚜", cls:"l7", words:[
+   {w:"barn",e:"🏚"},{w:"hen",e:"🐔"},{w:"puppy",e:"🐶"},{w:"kitten",e:"🐱"},{w:"calf",e:"🐮"},{w:"pony",e:"🐴"},
+   {w:"goose",e:"🪿"},{w:"donkey",e:"🫏"},{w:"rooster",e:"🐓"},{w:"tractor",e:"🚜"},{w:"farmer",e:"🧑"},
+   {w:"fence",e:"🚧"},{w:"windmill",e:"💨"},{w:"scarecrow",e:"🎃"},{w:"beehive",e:"🐝"},{w:"haystack",e:"🌾"},
+   {w:"stable",e:"🐎"},{w:"wagon",e:"🛺"} ]},
+ { id:"l8", title:"Level 8", subtitle:"In the House", emoji:"🏠", cls:"l8", words:[
+   {w:"chair",e:"🪑"},{w:"table",e:"🛋"},{w:"door",e:"🚪"},{w:"window",e:"🪟"},{w:"bed",e:"🛏"},{w:"lamp",e:"💡"},
+   {w:"spoon",e:"🥄"},{w:"fork",e:"🍴"},{w:"plate",e:"🍽"},{w:"bowl",e:"🥣"},{w:"mirror",e:"🪞"},
+   {w:"pillow",e:"🛏"},{w:"blanket",e:"🧶"},{w:"kettle",e:"🫖"},{w:"teapot",e:"🫖"},{w:"basket",e:"🧺"},
+   {w:"candle",e:"🕯"},{w:"brush",e:"🪮"} ]},
+ { id:"l9", title:"Level 9", subtitle:"Around Town", emoji:"🏙", cls:"l9", words:[
+   {w:"school",e:"🏫"},{w:"shop",e:"🏪"},{w:"bridge",e:"🌉"},{w:"road",e:"🛣"},{w:"bench",e:"🪑"},
+   {w:"market",e:"🏬"},{w:"library",e:"📚"},{w:"hospital",e:"🏥"},{w:"garden",e:"🌻"},{w:"fountain",e:"⛲"},
+   {w:"statue",e:"🗽"},{w:"tower",e:"🗼"},{w:"bakery",e:"🥖"},{w:"museum",e:"🏛"},{w:"station",e:"🚉"},
+   {w:"mailbox",e:"📬"},{w:"playground",e:"🛝"},{w:"hotel",e:"🏨"} ]},
+ { id:"l10", title:"Level 10", subtitle:"What I Wear", emoji:"👕", cls:"l10", words:[
+   {w:"shirt",e:"👕"},{w:"dress",e:"👗"},{w:"shoe",e:"👟"},{w:"sock",e:"🧦"},{w:"coat",e:"🧥"},{w:"scarf",e:"🧣"},
+   {w:"glove",e:"🧤"},{w:"boot",e:"🥾"},{w:"jacket",e:"🧥"},{w:"skirt",e:"👗"},{w:"button",e:"🔘"},
+   {w:"pocket",e:"👚"},{w:"ribbon",e:"🎀"},{w:"glasses",e:"👓"},{w:"watch",e:"⌚"},{w:"helmet",e:"⛑"},
+   {w:"crown",e:"👑"},{w:"apron",e:"🧑"} ]},
+ { id:"l11", title:"Level 11", subtitle:"Wild Weather", emoji:"🌦", cls:"l11", words:[
+   {w:"rain",e:"🌧"},{w:"snow",e:"❄"},{w:"storm",e:"⛈"},{w:"leaf",e:"🍂"},{w:"grass",e:"🌱"},{w:"river",e:"🏞"},
+   {w:"mountain",e:"⛰"},{w:"forest",e:"🌳"},{w:"island",e:"🏝"},{w:"desert",e:"🏜"},{w:"volcano",e:"🌋"},
+   {w:"waterfall",e:"💦"},{w:"rock",e:"🪨"},{w:"sand",e:"🏖"},{w:"puddle",e:"💧"},{w:"icicle",e:"🧊"},
+   {w:"lightning",e:"⚡"},{w:"meadow",e:"🌼"} ]},
+ { id:"l12", title:"Level 12", subtitle:"Sea and Sky", emoji:"🌊", cls:"l12", words:[
+   {w:"crab",e:"🦀"},{w:"starfish",e:"⭐"},{w:"seashell",e:"🐚"},{w:"jellyfish",e:"🪼"},{w:"seahorse",e:"🐎"},
+   {w:"lobster",e:"🦞"},{w:"seal",e:"🦭"},{w:"walrus",e:"🦭"},{w:"otter",e:"🦦"},{w:"eagle",e:"🦅"},
+   {w:"parrot",e:"🦜"},{w:"peacock",e:"🦚"},{w:"flamingo",e:"🦩"},{w:"ostrich",e:"🐦"},{w:"pelican",e:"🐦"},
+   {w:"seagull",e:"🐦"},{w:"swan",e:"🦢"} ]},
+ { id:"l13", title:"Level 13", subtitle:"More Animals", emoji:"🦌", cls:"l13", words:[
+   {w:"deer",e:"🦌"},{w:"moose",e:"🫎"},{w:"bison",e:"🦬"},{w:"llama",e:"🦙"},{w:"alpaca",e:"🦙"},
+   {w:"badger",e:"🦡"},{w:"beaver",e:"🦫"},{w:"raccoon",e:"🦝"},{w:"squirrel",e:"🐿"},{w:"hedgehog",e:"🦔"},
+   {w:"hamster",e:"🐹"},{w:"ferret",e:"🦦"},{w:"mole",e:"🐭"},{w:"skunk",e:"🦨"},{w:"weasel",e:"🦡"},
+   {w:"antelope",e:"🦌"},{w:"buffalo",e:"🐃"} ]},
+ { id:"l14", title:"Level 14", subtitle:"Bugs and Crawlies", emoji:"🐛", cls:"l14", words:[
+   {w:"spider",e:"🕷"},{w:"beetle",e:"🪲"},{w:"cricket",e:"🦗"},{w:"grasshopper",e:"🦗"},{w:"ladybug",e:"🐞"},
+   {w:"caterpillar",e:"🐛"},{w:"dragonfly",e:"🪰"},{w:"moth",e:"🦋"},{w:"wasp",e:"🐝"},{w:"snail",e:"🐌"},
+   {w:"worm",e:"🪱"},{w:"centipede",e:"🐛"},{w:"scorpion",e:"🦂"},{w:"termite",e:"🐜"},{w:"firefly",e:"✨"},
+   {w:"mantis",e:"🦗"},{w:"flea",e:"🐜"} ]},
+ { id:"l15", title:"Level 15", subtitle:"Fruit and Veg", emoji:"🥬", cls:"l15", words:[
+   {w:"orange",e:"🍊"},{w:"pear",e:"🍐"},{w:"plum",e:"🟣"},{w:"kiwi",e:"🥝"},{w:"apricot",e:"🍊"},
+   {w:"coconut",e:"🥥"},{w:"papaya",e:"🥭"},{w:"avocado",e:"🥑"},{w:"tomato",e:"🍅"},{w:"potato",e:"🥔"},
+   {w:"cabbage",e:"🥬"},{w:"lettuce",e:"🥬"},{w:"pumpkin",e:"🎃"},{w:"cucumber",e:"🥒"},{w:"spinach",e:"🥬"},
+   {w:"radish",e:"🥕"},{w:"turnip",e:"🥕"} ]},
+ { id:"l16", title:"Level 16", subtitle:"Sweet Treats", emoji:"🍪", cls:"l16", words:[
+   {w:"cookie",e:"🍪"},{w:"muffin",e:"🧁"},{w:"pancake",e:"🥞"},{w:"waffle",e:"🧇"},{w:"pudding",e:"🍮"},
+   {w:"jelly",e:"🍮"},{w:"biscuit",e:"🍪"},{w:"popcorn",e:"🍿"},{w:"pretzel",e:"🥨"},{w:"cupcake",e:"🧁"},
+   {w:"brownie",e:"🍫"},{w:"custard",e:"🍮"},{w:"toffee",e:"🍬"},{w:"marshmallow",e:"🍬"},{w:"lollipop",e:"🍭"},
+   {w:"syrup",e:"🍯"},{w:"sugar",e:"🧂"} ]},
+ { id:"l17", title:"Level 17", subtitle:"In the Kitchen", emoji:"🍳", cls:"l17", words:[
+   {w:"pan",e:"🍳"},{w:"pot",e:"🍲"},{w:"knife",e:"🔪"},{w:"jug",e:"🫗"},{w:"mug",e:"☕"},{w:"tray",e:"🍽"},
+   {w:"oven",e:"🔥"},{w:"stove",e:"🔥"},{w:"blender",e:"🥤"},{w:"toaster",e:"🍞"},{w:"whisk",e:"🥄"},
+   {w:"grater",e:"🧀"},{w:"ladle",e:"🥣"},{w:"sieve",e:"🍚"},{w:"sink",e:"🚰"},{w:"jar",e:"🫙"} ]},
+ { id:"l18", title:"Level 18", subtitle:"Toys and Games", emoji:"🧸", cls:"l18", words:[
+   {w:"teddy",e:"🧸"},{w:"puzzle",e:"🧩"},{w:"marble",e:"🔵"},{w:"yoyo",e:"🪀"},{w:"robot",e:"🤖"},
+   {w:"doll",e:"🪆"},{w:"swing",e:"🛝"},{w:"slide",e:"🛝"},{w:"seesaw",e:"🛝"},{w:"skateboard",e:"🛹"},
+   {w:"scooter",e:"🛴"},{w:"bicycle",e:"🚲"},{w:"trampoline",e:"🤸"},{w:"domino",e:"🀄"},{w:"chess",e:"♟"},
+   {w:"checkers",e:"⚫"} ]},
+ { id:"l19", title:"Level 19", subtitle:"Music and Art", emoji:"🎨", cls:"l19", words:[
+   {w:"piano",e:"🎹"},{w:"violin",e:"🎻"},{w:"trumpet",e:"🎺"},{w:"flute",e:"🪈"},{w:"harp",e:"🪕"},
+   {w:"cello",e:"🎻"},{w:"banjo",e:"🪕"},{w:"tuba",e:"🎺"},{w:"xylophone",e:"🎹"},{w:"accordion",e:"🪗"},
+   {w:"paint",e:"🎨"},{w:"crayon",e:"🖍"},{w:"easel",e:"🖼"},{w:"canvas",e:"🖼"},{w:"palette",e:"🎨"},
+   {w:"chalk",e:"🖍"},{w:"marker",e:"🖊"} ]},
+ { id:"l20", title:"Level 20", subtitle:"Sports Day", emoji:"⚽", cls:"l20", words:[
+   {w:"tennis",e:"🎾"},{w:"hockey",e:"🏒"},{w:"rugby",e:"🏉"},{w:"basketball",e:"🏀"},{w:"baseball",e:"⚾"},
+   {w:"football",e:"⚽"},{w:"golf",e:"⛳"},{w:"racket",e:"🎾"},{w:"medal",e:"🏅"},{w:"trophy",e:"🏆"},
+   {w:"whistle",e:"📯"},{w:"skate",e:"⛸"},{w:"ski",e:"🎿"},{w:"surfboard",e:"🏄"},{w:"hoop",e:"🛑"},
+   {w:"puck",e:"🏒"},{w:"dumbbell",e:"🏋"} ]},
+ { id:"l21", title:"Level 21", subtitle:"Things That Go", emoji:"🚚", cls:"l21", words:[
+   {w:"truck",e:"🚚"},{w:"van",e:"🚐"},{w:"taxi",e:"🚕"},{w:"jeep",e:"🚙"},{w:"tram",e:"🚋"},{w:"subway",e:"🚇"},
+   {w:"ferry",e:"⛴"},{w:"canoe",e:"🛶"},{w:"kayak",e:"🛶"},{w:"yacht",e:"🛥"},{w:"submarine",e:"🛥"},
+   {w:"ambulance",e:"🚑"},{w:"firetruck",e:"🚒"},{w:"bulldozer",e:"🚧"},{w:"crane",e:"🏗"},{w:"forklift",e:"🚜"},
+   {w:"tricycle",e:"🚲"} ]},
+ { id:"l22", title:"Level 22", subtitle:"People at Work", emoji:"🧑", cls:"l22", words:[
+   {w:"doctor",e:"🧑"},{w:"nurse",e:"👩"},{w:"teacher",e:"🧑"},{w:"chef",e:"🧑"},{w:"baker",e:"🥖"},
+   {w:"pilot",e:"🧑"},{w:"sailor",e:"⚓"},{w:"soldier",e:"🧑"},{w:"police",e:"👮"},{w:"firefighter",e:"🧑"},
+   {w:"dentist",e:"🦷"},{w:"plumber",e:"🔧"},{w:"builder",e:"👷"},{w:"waiter",e:"🍽"},{w:"singer",e:"🎤"},
+   {w:"astronomer",e:"🔭"} ]},
+ { id:"l23", title:"Level 23", subtitle:"My Body", emoji:"🖐", cls:"l23", words:[
+   {w:"hand",e:"✋"},{w:"foot",e:"🦶"},{w:"toe",e:"🦶"},{w:"hair",e:"💇"},{w:"eye",e:"👁"},{w:"ear",e:"👂"},
+   {w:"nose",e:"👃"},{w:"mouth",e:"👄"},{w:"tooth",e:"🦷"},{w:"tongue",e:"👅"},{w:"finger",e:"👆"},
+   {w:"thumb",e:"👍"},{w:"knee",e:"🦵"},{w:"elbow",e:"💪"},{w:"shoulder",e:"💪"},{w:"ankle",e:"🦶"},
+   {w:"wrist",e:"✋"} ]},
+ { id:"l24", title:"Level 24", subtitle:"Tools and Building", emoji:"🔧", cls:"l24", words:[
+   {w:"nail",e:"🪛"},{w:"screw",e:"🪛"},{w:"saw",e:"🪚"},{w:"drill",e:"🪛"},{w:"wrench",e:"🔧"},
+   {w:"pliers",e:"🔧"},{w:"chisel",e:"🪚"},{w:"shovel",e:"🛠"},{w:"rake",e:"🍁"},{w:"axe",e:"🪓"},
+   {w:"rope",e:"🪢"},{w:"brick",e:"🧱"},{w:"paintbrush",e:"🖌"},{w:"toolbox",e:"🧰"},{w:"wheelbarrow",e:"🚧"} ]},
+ { id:"l25", title:"Level 25", subtitle:"Out in Space", emoji:"🚀", cls:"l25", words:[
+   {w:"sun",e:"☀"},{w:"star",e:"⭐"},{w:"planet",e:"🪐"},{w:"comet",e:"☄"},{w:"meteor",e:"☄"},
+   {w:"galaxy",e:"🌌"},{w:"astronaut",e:"👨"},{w:"satellite",e:"🛰"},{w:"telescope",e:"🔭"},
+   {w:"spaceship",e:"🚀"},{w:"crater",e:"🌘"},{w:"eclipse",e:"🌑"},{w:"asteroid",e:"☄"},{w:"nebula",e:"🌌"},
+   {w:"rover",e:"🛸"},{w:"spacesuit",e:"🧑"} ]},
+ { id:"l26", title:"Level 26", subtitle:"Dinosaur Dig", emoji:"🦖", cls:"l26", words:[
+   {w:"fossil",e:"🦴"},{w:"skeleton",e:"💀"},{w:"mammoth",e:"🦣"},{w:"trilobite",e:"🫎"},{w:"ammonite",e:"🐚"},
+   {w:"pterosaur",e:"🦕"},{w:"triceratops",e:"🦕"},{w:"stegosaurus",e:"🦕"},{w:"velociraptor",e:"🦖"},
+   {w:"brachiosaurus",e:"🦕"},{w:"pterodactyl",e:"🦕"},{w:"diplodocus",e:"🦕"},{w:"ankylosaurus",e:"🦕"},
+   {w:"allosaurus",e:"🦖"},{w:"spinosaurus",e:"🦖"},{w:"iguanodon",e:"🦕"},{w:"tyrannosaurus",e:"🦖"} ]},
+ { id:"l27", title:"Level 27", subtitle:"Birds Everywhere", emoji:"🦜", cls:"l27", words:[
+   {w:"robin",e:"🐦"},{w:"sparrow",e:"🐦"},{w:"crow",e:"🐦"},{w:"raven",e:"🐦"},{w:"pigeon",e:"🕊"},
+   {w:"pheasant",e:"🐦"},{w:"falcon",e:"🦅"},{w:"hawk",e:"🦅"},{w:"vulture",e:"🐦"},{w:"stork",e:"🐦"},
+   {w:"heron",e:"🐦"},{w:"woodpecker",e:"🐦"},{w:"kingfisher",e:"🐦"},{w:"canary",e:"🐦"},{w:"finch",e:"🐦"},
+   {w:"toucan",e:"🦜"},{w:"hummingbird",e:"🐦"} ]},
+ { id:"l28", title:"Level 28", subtitle:"Trees and Plants", emoji:"🌲", cls:"l28", words:[
+   {w:"oak",e:"🌳"},{w:"pine",e:"🌲"},{w:"maple",e:"🍁"},{w:"willow",e:"🌳"},{w:"birch",e:"🌳"},{w:"palm",e:"🌴"},
+   {w:"cactus",e:"🌵"},{w:"fern",e:"🌿"},{w:"moss",e:"🌿"},{w:"bamboo",e:"🎍"},{w:"ivy",e:"🌿"},{w:"rose",e:"🌹"},
+   {w:"tulip",e:"🌷"},{w:"daisy",e:"🌼"},{w:"lily",e:"🌷"},{w:"orchid",e:"🌺"},{w:"mushroom",e:"🍄"} ]},
+ { id:"l29", title:"Level 29", subtitle:"Around the World", emoji:"🗺", cls:"l29", words:[
+   {w:"pyramid",e:"🏺"},{w:"temple",e:"⛩"},{w:"palace",e:"🏰"},{w:"lighthouse",e:"🗼"},{w:"igloo",e:"🏠"},
+   {w:"tent",e:"⛺"},{w:"cottage",e:"🏡"},{w:"skyscraper",e:"🏢"},{w:"stadium",e:"🏟"},{w:"harbour",e:"⚓"},
+   {w:"canyon",e:"🏞"},{w:"glacier",e:"🧊"},{w:"cave",e:"🗻"},{w:"valley",e:"🏞"},{w:"cliff",e:"🏔"},
+   {w:"lagoon",e:"🏝"},{w:"reef",e:"🪸"} ]},
+ { id:"l30", title:"Level 30", subtitle:"Really Big Words", emoji:"🏆", cls:"l30", words:[
+   {w:"refrigerator",e:"🧊"},{w:"motorcycle",e:"🏍"},{w:"calculator",e:"🧮"},{w:"computer",e:"💻"},
+   {w:"keyboard",e:"⌨"},{w:"television",e:"📺"},{w:"microscope",e:"🔬"},{w:"binoculars",e:"🔭"},
+   {w:"thermometer",e:"🌡"},{w:"escalator",e:"🛗"},{w:"elevator",e:"🛗"},{w:"parachute",e:"🪂"},
+   {w:"avalanche",e:"🏔"},{w:"harmonica",e:"🪗"},{w:"saxophone",e:"🎷"},{w:"tambourine",e:"🪘"},
+   {w:"chandelier",e:"💡"} ]},
 ];
 const IMAGES = {guitar:"guitar.png", ladder:"ladder.png"};   // everything else is <word>.jpg
 function imgSrc(w){ return "images/"+(IMAGES[w] || (w+".jpg")); }
+/* Words that show their emoji INSTEAD of a photo, because the encyclopedia
+   picture misleads a child: sun and star are both grey telescope discs. */
+const EMOJI_WORDS = ["sun","star","mouth"];
 const ROUND_SIZE = 10;
 function timeForWord(w){ return 15 + w.length*3; }   // generous clock
 
@@ -224,7 +384,7 @@ const TIER_OF={}; TIERS.forEach((t,i)=>t.words.forEach(o=>TIER_OF[o.w]=i));
    Older single-profile saves are migrated into a first player automatically. */
 const LEGACY_KEYS=["spellquest","spellquest_v3","spellquest_pics_v1","spellquest_v1"];
 const PLAYERS_KEY="spellquest_players";
-const DEFAULT={ tier:0, points:0, known:{}, practice:{}, badges:{}, muted:false };
+const DEFAULT={ tier:0, points:0, known:{}, practice:{}, badges:{}, muted:false, reports:{} };
 const AVATARS=["🦁","🐯","🐼","🦊","🐨","🐸","🦄","🐵","🐧","🐙","🦖","🐢","🐝","🦋","🌟","🚀","🐰","🐳"];
 function saveKeyFor(id){ return "spellquest:"+id; }
 let save={...DEFAULT};                       // the CURRENT player's progress
@@ -282,8 +442,13 @@ function recomputeTier(known){ let t=0; while(t<TIERS.length && TIERS[t].words.e
 function migrate(old){ const known=extractKnown(old);
   return { tier:(typeof old.tier==="number"?old.tier:recomputeTier(known)), points:Object.keys(known).length,
            known, practice:old.practice||{}, badges:old.badges||{}, muted:!!old.muted }; }
+/* Copy every container. Object.assign copies REFERENCES, so a save built from
+   DEFAULT (a brand-new player, where readKey returns null) would otherwise share
+   DEFAULT.known / .practice / .badges / .reports — and the first child's words
+   would leak into the next profile created. */
 function normalizeSave(d){ const s=Object.assign({}, DEFAULT, d||{});
-  s.known=s.known||{}; s.practice=s.practice||{}; s.badges=s.badges||{}; return s; }
+  s.known=Object.assign({}, s.known); s.practice=Object.assign({}, s.practice);
+  s.badges=Object.assign({}, s.badges); s.reports=Object.assign({}, s.reports); return s; }
 /* swap `save` over to the current player's own stored progress */
 function loadPlayerSave(){
   const p=currentPlayer(); if(!p){ save={...DEFAULT}; return; }
@@ -301,6 +466,7 @@ function applyRemote(d){ if(!d) return 0;
   save.tier=Math.max(save.tier||0, (typeof d.tier==="number"?d.tier:recomputeTier(save.known)));
   if(d.badges) Object.assign(save.badges,d.badges);
   if(d.practice) for(const t in d.practice){ save.practice[t]=Array.from(new Set([...(save.practice[t]||[]), ...(d.practice[t]||[])])); }
+  if(d.reports) for(const w in d.reports){ if(!save.reports[w]) save.reports[w]=d.reports[w]; }
   save.points=Object.keys(save.known).length; return added; }
 function knownCount(){ return Object.keys(save.known).length; }
 function tierKnown(ti){ return TIERS[ti].words.filter(o=>save.known[o.w]).length; }
@@ -713,7 +879,7 @@ function showHome(){
           const got=tierKnown(i),tot=L.words.length; const pct=Math.round(got/tot*100);
           const tag = state==="locked"?"🔒 Locked" : state==="done"?"✅ Done":"▶ Play";
           const badge2 = state==="done"?'<div class="badge2">⭐</div>' : state==="locked"?'<div class="badge2">🔒</div>':'';
-          return `<div class="level ${L.cls} ${state==="locked"?"locked":""}" data-i="${i}" data-state="${state}">
+          return `<div class="level ${L.cls} ${state==="locked"?"locked":""} ${state==="current"?"current":""}" data-i="${i}" data-state="${state}">
             <div class="face">${badge2}<div class="emoji">${L.emoji}</div><h3>${L.title}</h3><p>${L.subtitle}</p>
               <div class="progwrap"><i style="width:${pct}%"></i></div>
               <p style="margin-top:7px">${state==="locked"?"Get 10/10 to unlock":`${got}/${tot} learned · ${tag}`}</p>
@@ -726,6 +892,13 @@ function showHome(){
   document.getElementById("cloudBtn").onclick=()=>{ sfxClick(); showCloud(); };
   app.querySelectorAll(".level").forEach(el=>{ el.onclick=()=>{ const i=+el.dataset.i;
     if(el.dataset.state!=="locked"){ sfxClick(); startTier(i); } else { sfxWrong(); toast("🔒 Locked!",false); playPhrase("tryagain","Get ten out of ten to unlock this level."); } }; });
+  /* with many levels the one you can play may be far down the list — put it
+     in front of the child instead of making them scroll to find it. Scroll the
+     level box only; scrollIntoView would also scroll the page and push the
+     logo and the buttons off the top. */
+  const box=app.querySelector(".levels"), cur=box&&box.querySelector(".level.current");
+  if(box&&cur){ const b=box.getBoundingClientRect(), c=cur.getBoundingClientRect();
+    box.scrollTop += (c.top-b.top) - (box.clientHeight-c.height)/2; }
 }
 
 function showProfile(){
@@ -782,12 +955,20 @@ function showCloud(){
           👥 Players syncing on this device:<br>
           ${roster.players.length?roster.players.map(p=>`<b>${p.emoji} ${p.name}</b>`).join(" &nbsp;·&nbsp; "):"<i>No players yet</i>"}
         </div>
+        ${(()=>{ const r=Object.keys(save.reports||{}); return r.length? `
+        <div style="background:#fff7e0;border:2px solid #fbbf24;border-radius:14px;padding:10px 14px;margin:8px 0 6px;font-size:15px">
+          🚩 Pictures reported as wrong (${r.length}):<br>
+          <b>${r.join(", ")}</b>
+          <div style="margin-top:8px"><button class="btn ghost" id="clearReports" style="padding:6px 14px;font-size:15px">Clear list</button></div>
+        </div>`:""; })()}
         <div class="controls" style="justify-content:center;margin-top:14px">
           <button class="btn blue" id="syncNow">🔄 Sync Now</button>
         </div>
       </div>
     </div>`;
   document.getElementById("back").onclick=()=>{ sfxClick(); showHome(); };
+  const cr=document.getElementById("clearReports");
+  if(cr) cr.onclick=()=>{ sfxClick(); save.reports={}; persist(); showCloud(); };
   document.getElementById("syncNow").onclick=async()=>{ if(!cloudReady()){ toast("Sync is off",false); return; }
     sfxClick(); const r=await cloudSyncNow();
     if(r.ok){ sfxCorrect(); toast("Synced! ☁️ +"+(r.added||0)+" words"); } else { sfxWrong(); toast("Couldn't reach the cloud",false); }
@@ -822,6 +1003,7 @@ function startTier(ti){
 
 const KEYROWS=["ABCDEFG","HIJKLMN","OPQRSTU","VWXYZ"];
 function stagePic(){
+  if(EMOJI_WORDS.includes(word)) return `<div class="picfallback" style="display:flex">${emoji}</div>`;
   return `<img class="picture" id="pic" alt="" src="${imgSrc(word)}"
       onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
     <div class="picfallback">${emoji}</div>`;
@@ -844,7 +1026,10 @@ function renderWord(){
       </div>
       <div class="card">
         <div class="picwrap">${stagePic()}</div>
-        <button class="speaker" id="spk">🔊</button>
+        <div class="picrow">
+          <button class="speaker" id="spk">🔊</button>
+          <button class="flagbtn" id="flag" title="This picture is wrong">🚩</button>
+        </div>
         <div class="slots" id="slots"></div>
         <div class="keyboard" id="kb">
           ${KEYROWS.map(r=>`<div class="krow">${[...r].map(l=>`<button class="key" data-k="${l}">${l}</button>`).join("")}</div>`).join("")}
@@ -860,6 +1045,7 @@ function renderWord(){
 
   document.getElementById("quit").onclick=()=>{ sfxClick(); cleanupWord(); showHome(); };
   document.getElementById("spk").onclick=()=>{ sfxClick(); sayWord(word); };
+  document.getElementById("flag").onclick=()=>reportPicture();
   document.getElementById("bksp").onclick=backspace;
   document.getElementById("check").onclick=submit;
   document.querySelectorAll("#kb .key[data-k]").forEach(b=>{ b.onclick=()=>pressLetter(b.dataset.k.toLowerCase()); });
@@ -869,9 +1055,24 @@ function renderWord(){
     else if(/^[a-zA-Z]$/.test(e.key)){ pressLetter(e.key.toLowerCase()); } };
   document.addEventListener("keydown",keyHandler);
 
+  if(save.reports[word]){ const f=document.getElementById("flag"); if(f) f.classList.add("done"); }
   updateSlots(); sayWord(word); startTimer(timeForWord(word));
 }
 
+/* Flag a picture that does not match its word. Saved on the player's profile
+   and synced, so a report made on the child's tablet shows up on your device.
+   Deliberately does NOT skip the word or touch the score — the word is still
+   spoken aloud, so it stays playable, and a child tapping it changes nothing. */
+function reportPicture(){
+  if(!word) return;
+  const btn=document.getElementById("flag");
+  if(save.reports[word]){ toast("Already reported 🚩"); return; }
+  save.reports[word]=new Date().toISOString().slice(0,10);
+  persist();
+  sfxClick();
+  if(btn) btn.classList.add("done");
+  toast("Reported 🚩");                 /* no voice — the voice teaches words only */
+}
 function updateSlots(){ slotEls.forEach((el,i)=>{ el.textContent=(typed[i]||"").toUpperCase();
     el.className="slot"+(typed[i]?" filled":""); });
   const c=document.getElementById("check"); if(c) c.disabled = typed.length!==word.length; }
